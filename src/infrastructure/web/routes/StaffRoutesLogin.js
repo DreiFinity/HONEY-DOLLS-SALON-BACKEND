@@ -1,5 +1,5 @@
 import express from "express";
-import { StaffController } from "../../../interfaces/controllers/StaffLogin/StaffController.js";
+import { StaffController } from "../../../interfaces/controllers/Staff/StaffControllerLogin.js";
 
 const router = express.Router();
 
