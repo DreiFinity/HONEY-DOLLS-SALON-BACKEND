@@ -2,10 +2,14 @@ import { LoginStaff } from "../../../application/usecases/Staff/LoginStaff.js";
 import { pool } from "../../../infrastructure/db/index.js";
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 const loginStaff = new LoginStaff(pool);   // ← pass pool directly
 =======
 const loginStaff = new LoginStaff(pool); // ← pass pool directly
 >>>>>>> 7f081c6e6b172bd213ccfd24194f1405617332c5
+=======
+const loginStaff = new LoginStaff(pool); // ← pass pool directly
+>>>>>>> 7f081c6 (fixed issues with staff login)
 
 export class StaffController {
   static async login(req, res) {
@@ -21,7 +25,11 @@ export class StaffController {
     }
   }
 <<<<<<< HEAD
+<<<<<<< HEAD
 }
 =======
 }
 >>>>>>> 7f081c6e6b172bd213ccfd24194f1405617332c5
+=======
+}
+>>>>>>> 7f081c6 (fixed issues with staff login)
