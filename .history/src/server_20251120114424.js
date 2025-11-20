@@ -16,7 +16,7 @@ import StaffRoutes from "./infrastructure/web/routes/StaffRoutes.js";
 import StaffRepositoryImpl from "./infrastructure/repositories/Staff/StaffRepositoryImpl.js";
 
 import { StaffRepository } from "./infrastructure/repositories/Staff/StaffRepositryLogin.js";
-import StaffRoute from "././infrastructure/web/routes/StaffRoutesLogin.js";
+import StaffRoute from "././infrastructure/web/routes/StaffRoute.js";
 
 const staffLogiRepo = new StaffRepository();
 const serviceRepository = new ServiceRepositoryImpl();

@@ -15,10 +15,10 @@ import ServiceRepositoryImpl from "./infrastructure/repositories/Service/Service
 import StaffRoutes from "./infrastructure/web/routes/StaffRoutes.js";
 import StaffRepositoryImpl from "./infrastructure/repositories/Staff/StaffRepositoryImpl.js";
 
-import { StaffRepository } from "./infrastructure/repositories/Staff/StaffRepositryLogin.js";
-import StaffRoute from "././infrastructure/web/routes/StaffRoutesLogin.js";
 
-const staffLogiRepo = new StaffRepository();
+import StaffRoute from "././infrastructure/web/routes/StaffRoute.js";
+import StaffPOSRoute from "./infrastructure/web/routes/StaffPOSRoute.js";
+
 const serviceRepository = new ServiceRepositoryImpl();
 const staffRepository = new StaffRepositoryImpl();
 
@@ -39,7 +39,6 @@ app.use("/api/customer", RegisterRoutes(userRepository, hashService));
 app.use("/api/appointment", AppointmentRoutes(appointmentRepository));
 app.use("/api/services", ServiceRoutes(serviceRepository));
 app.use("/api/staff", StaffRoutes(staffRepository));
-app.use("/api/stafflogin", StaffRoute(staffLogiRepo));
 
 // Test route
 app.get("/", async (req, res) => {
