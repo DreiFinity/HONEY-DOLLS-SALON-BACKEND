@@ -8,4 +8,8 @@ export class CreateOrderUseCase {
     // You can add validation, calculate total, etc.
     return await this.orderRepository.create(orderData, details, customerid);
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 8908797 (to debug orders)
