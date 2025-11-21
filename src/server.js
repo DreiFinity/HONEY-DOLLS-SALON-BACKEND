@@ -15,12 +15,16 @@ import StaffRepositoryImpl from "./infrastructure/repositories/Staff/StaffReposi
 import StaffRouteLogin from "./infrastructure/web/routes/StaffRoutesLogin.js";
 import ServiceRoutes from "./infrastructure/web/routes/ServiceRoutes.js";
 import ServiceRepositoryImpl from "./infrastructure/repositories/Service/ServiceRepositoryImpl.js";
+import ProductRoutes from "./infrastructure/web/routes/ProductRoutes.js";
+import ProductRepositoryImpl from "./infrastructure/repositories/Product/ProductRepositoryImpl.js";
+import orderRoutes from './infrastructure/web/routes/orderRoutes.js';
 
 const appointmentRepository = new AppointmentRepositoryImpl();
 const userRepository = new UserRepositoryImpl();
 const hashService = new BcryptService();
 const serviceRepository = new ServiceRepositoryImpl();
 const staffRepository = new StaffRepositoryImpl();
+const productRepository = new ProductRepositoryImpl();
 
 dotenv.config();
 
@@ -36,9 +40,10 @@ app.use("/api/user", LoginRoutes);
 app.use("/api/customer", RegisterRoutes(userRepository, hashService));
 app.use("/api/appointment", AppointmentRoutes(appointmentRepository));
 app.use("/api/staff", StaffRoutes(staffRepository));
-
+app.use('/api/orders', orderRoutes);
 app.use("/api/stafflogin", StaffRouteLogin);
 app.use("/api/services", ServiceRoutes(serviceRepository));
+app.use("/api/products", ProductRoutes(productRepository));
 
 // Test route
 app.get("/", async (req, res) => {
