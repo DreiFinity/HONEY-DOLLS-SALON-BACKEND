@@ -3,7 +3,7 @@ import cors from "cors";
 import express from "express";
 import dotenv from "dotenv";
 import { config } from "./config/env.js";
-import { pool } from "./infrastructure/db/index.js"; 
+import { pool } from "./infrastructure/db/index.js";
 import LoginRoutes from "./infrastructure/web/routes/LoginRoutes.js";
 import RegisterRoutes from "./infrastructure/web/routes/RegisterRoutes.js";
 import { UserRepositoryImpl } from "./infrastructure/repositories/Login/UserRepositoryImpl.js";
@@ -16,6 +16,8 @@ import StaffRouteLogin from "./infrastructure/web/routes/StaffRoutesLogin.js";
 const appointmentRepository = new AppointmentRepositoryImpl();
 const userRepository = new UserRepositoryImpl();
 const hashService = new BcryptService();
+const serviceRepository = new ServiceRepositoryImpl();
+const staffRepository = new StaffRepositoryImpl();
 
 dotenv.config();
 
@@ -32,6 +34,9 @@ app.use("/api/customer", RegisterRoutes(userRepository, hashService));
 app.use("/api/appointment", AppointmentRoutes(appointmentRepository));
 app.use("/api/staff", StaffRoute);
 app.use("/api/stafflogin", StaffRouteLogin);
+
+app.use("/api/stafflogin", StaffRouteLogin);
+app.use("/api/services", ServiceRoutes(serviceRepository));
 
 // Test route
 app.get("/", async (req, res) => {
