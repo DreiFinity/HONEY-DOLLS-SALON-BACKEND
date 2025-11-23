@@ -11,7 +11,7 @@ import { BcryptService } from "./infrastructure/security/BcryptService.js";
 import AppointmentRoutes from "./infrastructure/web/routes/AppointmentRoutes.js";
 import { AppointmentRepositoryImpl } from "./infrastructure/repositories/Appointment/AppointmentRepositoryImpl.js";
 import StaffRoute from "././infrastructure/web/routes/StaffRoutes.js";
-import StaffRepositoryImpl from "./infrastructure/repositories/Staff/StaffRepositoryImpl.js";
+import { StaffRepositoryImpl } from "./infrastructure/repositories/Staff/StaffRepositoryImpl.js";
 import StaffRouteLogin from "./infrastructure/web/routes/StaffRoutesLogin.js";
 import ServiceRoutes from "./infrastructure/web/routes/ServiceRoutes.js";
 import ServiceRepositoryImpl from "./infrastructure/repositories/Service/ServiceRepositoryImpl.js";
