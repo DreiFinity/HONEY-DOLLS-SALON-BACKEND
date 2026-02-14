@@ -9,4 +9,18 @@ export default class StaffRepositoryImpl {
     `);
     return result.rows;
   }
+  async findByUserId(userId) {
+    const query = `
+      SELECT firstname, lastname, branchid, image
+      FROM staff
+      WHERE userid = $1
+      LIMIT 1
+    `;
+
+    const result = await pool.query(query, [userId]);
+
+    if (result.rows.length === 0) return null;
+
+    return result.rows[0];
+  }
 }
