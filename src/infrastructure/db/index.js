@@ -37,7 +37,7 @@ export async function createOrUpdateActiveSession(userId, loginId, lastRoute) {
     [userId, loginId, lastRoute],
   );
 }
-
+//andrei bayot
 // Update last route for resume activity
 export async function updateActiveSessionLastRoute(userId, lastRoute) {
   await pool.query(

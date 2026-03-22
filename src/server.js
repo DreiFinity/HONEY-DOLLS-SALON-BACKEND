@@ -7,6 +7,8 @@ import dotenv from "dotenv";
 import { config } from "./config/env.js";
 import { pool } from "./infrastructure/db/index.js";
 
+import QueueRoutes from "./infrastructure/web/routes/QueueRoutes.js";
+import QueueRepositoryImpl from "./infrastructure/repositories/Queue/QueueRepositoryImpl.js";
 import { UserRepositoryImpl } from "./infrastructure/repositories/Login/UserRepositoryImpl.js";
 import { BcryptService } from "./infrastructure/security/BcryptService.js";
 import AppointmentRoutes from "./infrastructure/web/routes/AppointmentRoutes.js";
@@ -34,6 +36,7 @@ const staffRepository = new StaffRepositoryImpl();
 const productRepository = new ProductRepositoryImpl();
 const purchaseOrderRepository = new PurchaseOrderRepositoryImpl();
 const paymentRepository = new CustomerPaymentRepositoryImpl();
+const queueRepository = new QueueRepositoryImpl();
 
 dotenv.config();
 
@@ -46,7 +49,7 @@ app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-
+app.use("/api/queue", QueueRoutes(queueRepository));
 app.use("/api/auth", AuthRoutes);
 
 app.use("/api/appointment", AppointmentRoutes(appointmentRepository));
@@ -61,7 +64,10 @@ app.use("/api/customerpayment", CustomerPaymentRoutes(paymentRepository));
 app.use("/api/user", FetchUserRoutes);
 
 // Serve uploaded images correctly
-app.use("/api/uploads", express.static("C:/NAGBA_ANDREI/salon/upload"));
+app.use(
+  "/api/uploads",
+  express.static("C:/Users/JAYVE CORONADO/Documents/SE2/BackEnd/upload")
+);
 
 // Test route
 app.get("/", async (req, res) => {

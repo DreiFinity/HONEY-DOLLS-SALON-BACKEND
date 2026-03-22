@@ -15,6 +15,10 @@ export default class CreateAppointment {
     recurring = false,
     recurrencerule = null,
   }) {
+
+console.log("UserId received in CreateAppointment:", userId);
+
+
     const customerId = await this.appointmentRepository.findCustomerIdByUserId(
       userId
     );

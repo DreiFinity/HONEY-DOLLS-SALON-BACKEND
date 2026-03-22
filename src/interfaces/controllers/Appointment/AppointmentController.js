@@ -5,6 +5,7 @@ import GetAppointments from "../../../application/usecases/Appointment/GetAppoin
 
 export default class AppointmentController {
   constructor(appointmentRepository) {
+    this.appointmentRepository = appointmentRepository;
     this.createUsecase = new CreateAppointment(appointmentRepository);
     this.updateUsecase = new UpdateAppointment(appointmentRepository);
     this.deleteUsecase = new DeleteAppointment(appointmentRepository);
@@ -13,7 +14,7 @@ export default class AppointmentController {
 
   async create(req, res) {
     try {
-      const services = req.body.services; // <-- array from request body
+      const services = req.body.services;
 
       if (!Array.isArray(services) || services.length === 0) {
         return res
@@ -22,14 +23,14 @@ export default class AppointmentController {
       }
 
       const appointment = await this.createUsecase.execute({
-        userId: req.userId,
-        services, // pass array here
+        userId: req.user.id,
+        services,
         starttime: req.body.starttime,
         endtime: req.body.endtime,
         staffid: req.body.staffid,
         notes: req.body.notes,
         priority: req.body.priority,
-        status: req.body.status || null,
+        status: req.body.status || "pending",
         recurring: req.body.recurring || false,
         recurrencerule: req.body.recurrencerule || null,
       });
@@ -40,19 +41,12 @@ export default class AppointmentController {
     }
   }
 
-  // src/interfaces/controllers/Appointment/AppointmentController.js
   async update(req, res) {
-    console.log("====== UPDATE DEBUG ======");
-    console.log("Headers:", req.headers);
-    console.log("Params:", req.params);
-    console.log("Raw body:", req.body);
-
-    if (!req.body || Object.keys(req.body).length === 0) {
-      console.log("❌ Body is EMPTY");
-      return res.status(400).json({ message: "No data provided to update" });
-    }
-
     try {
+      if (!req.body || Object.keys(req.body).length === 0) {
+        return res.status(400).json({ message: "No data provided to update" });
+      }
+
       const appointment = await this.updateUsecase.execute(
         req.params.id,
         req.body
@@ -60,7 +54,6 @@ export default class AppointmentController {
 
       return res.json({ message: "Appointment updated", appointment });
     } catch (err) {
-      console.log("❌ ERROR:", err.message);
       return res.status(400).json({ message: err.message });
     }
   }
@@ -76,10 +69,25 @@ export default class AppointmentController {
 
   async get(req, res) {
     try {
-      const filters = {
-        staffid: req.query.staffid,
-        customerid: req.query.customerid,
-      };
+      let filters = {};
+
+      if (req.user.role === "customer") {
+        const customerid = await this.appointmentRepository.findCustomerIdByUserId(
+          req.user.id
+        );
+        filters.customerid = customerid;
+      } else if (req.user.role === "staff") {
+        const staffid = await this.appointmentRepository.findStaffIdByUserId(
+          req.user.id
+        );
+        filters.staffid = staffid;
+      } else {
+        filters = {
+          staffid: req.query.staffid,
+          customerid: req.query.customerid,
+        };
+      }
+
       const appointments = await this.getUsecase.execute(filters);
       return res.json({ appointments });
     } catch (err) {

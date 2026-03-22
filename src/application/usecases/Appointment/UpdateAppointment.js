@@ -1,4 +1,3 @@
-// src/application/usecases/Appointment/UpdateAppointment.js
 export default class UpdateAppointment {
   constructor(appointmentRepository) {
     this.appointmentRepository = appointmentRepository;
@@ -9,7 +8,6 @@ export default class UpdateAppointment {
       throw new Error("No data provided to update appointment");
     }
 
-    // Only allow fields relevant to rescheduling
     const allowedFields = [
       "starttime",
       "endtime",
@@ -17,7 +15,10 @@ export default class UpdateAppointment {
       "notes",
       "recurring",
       "recurrencerule",
+      "status",
+      "cancellationreason",
     ];
+
     const fieldsToUpdate = {};
 
     for (const key of allowedFields) {
@@ -27,7 +28,7 @@ export default class UpdateAppointment {
     }
 
     if (Object.keys(fieldsToUpdate).length === 0) {
-      throw new Error("No valid fields provided for rescheduling");
+      throw new Error("No valid fields provided for appointment update");
     }
 
     const updated = await this.appointmentRepository.updateAppointment(
