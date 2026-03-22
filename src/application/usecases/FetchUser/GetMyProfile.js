@@ -29,6 +29,9 @@ export default class GetMyProfile {
       firstname: profile.firstname,
       lastname: profile.lastname,
       fullName: `${profile.firstname} ${profile.lastname}`,
+      email: profile.email || null,
+      phone: profile.contact || null,
+      profileimage: profile.profileimage || null,
       branchId: profile.branchid || null,
       image: profile.image || null,
     };

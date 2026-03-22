@@ -4,9 +4,10 @@ import { pool } from "../../db/index.js";
 export default class CustomerAddressRepositoryImpl extends CustomerAddressRepository {
   async findByUserId(userId) {
     const query = `
-      SELECT firstname, lastname
-      FROM customers
-      WHERE userid = $1
+      SELECT c.firstname, c.lastname, c.contact, c.profileimage, u.email
+      FROM customers c
+      INNER JOIN users u ON c.userid = u.userid
+      WHERE c.userid = $1
       LIMIT 1
     `;
 
@@ -15,6 +16,28 @@ export default class CustomerAddressRepositoryImpl extends CustomerAddressReposi
     if (result.rows.length === 0) return null;
 
     return result.rows[0];
+  }
+
+  async updateProfile(userId, { firstname, lastname, contact }) {
+    const result = await pool.query(
+      `UPDATE customers
+       SET firstname = $1, lastname = $2, contact = $3, updatedat = CURRENT_TIMESTAMP
+       WHERE userid = $4
+       RETURNING *`,
+      [firstname, lastname, contact, userId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async updateProfileImage(userId, filename) {
+    const result = await pool.query(
+      `UPDATE customers
+       SET profileimage = $1, updatedat = CURRENT_TIMESTAMP
+       WHERE userid = $2
+       RETURNING *`,
+      [filename, userId]
+    );
+    return result.rows[0] || null;
   }
   async create(data) {
     const result = await pool.query(

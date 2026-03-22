@@ -4,8 +4,9 @@ import DeleteAppointment from "../../../application/usecases/Appointment/DeleteA
 import GetAppointments from "../../../application/usecases/Appointment/GetAppointments.js";
 
 export default class AppointmentController {
-  constructor(appointmentRepository) {
+  constructor(appointmentRepository, queueRepository) {
     this.appointmentRepository = appointmentRepository;
+    this.queueRepository = queueRepository;
     this.createUsecase = new CreateAppointment(appointmentRepository);
     this.updateUsecase = new UpdateAppointment(appointmentRepository);
     this.deleteUsecase = new DeleteAppointment(appointmentRepository);
@@ -51,6 +52,15 @@ export default class AppointmentController {
         req.params.id,
         req.body
       );
+
+      // If the appointment was confirmed, sync it to the queue
+      if (req.body.status === "confirmed" && this.queueRepository) {
+        try {
+          await this.queueRepository.syncAppointmentToQueue(req.params.id);
+        } catch (syncErr) {
+          console.error("Failed to sync appointment to queue:", syncErr);
+        }
+      }
 
       return res.json({ message: "Appointment updated", appointment });
     } catch (err) {

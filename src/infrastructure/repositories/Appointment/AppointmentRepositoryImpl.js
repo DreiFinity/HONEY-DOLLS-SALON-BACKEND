@@ -142,6 +142,9 @@ export class AppointmentRepositoryImpl {
         a.cancellationreason,
         s.firstname,
         s.lastname,
+        c.firstname AS customer_firstname,
+        c.lastname AS customer_lastname,
+        CONCAT(c.firstname, ' ', c.lastname) AS customername,
         COALESCE(
           JSON_AGG(
             DISTINCT JSONB_BUILD_OBJECT(
@@ -156,6 +159,8 @@ export class AppointmentRepositoryImpl {
       FROM appointment a
       LEFT JOIN staff s 
         ON a.staffid = s.staffid
+      LEFT JOIN customers c
+        ON a.customerid = c.customerid
       LEFT JOIN appointmentservice aps 
         ON aps.appointmentid = a.appointmentid
       LEFT JOIN service sv 
@@ -172,7 +177,9 @@ export class AppointmentRepositoryImpl {
         a.status,
         a.cancellationreason,
         s.firstname,
-        s.lastname
+        s.lastname,
+        c.firstname,
+        c.lastname
       ORDER BY a.starttime DESC
     `;
 

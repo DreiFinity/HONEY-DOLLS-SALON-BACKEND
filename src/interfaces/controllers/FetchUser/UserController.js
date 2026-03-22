@@ -25,3 +25,79 @@ export default async function getMyProfile(req, res) {
     res.status(404).json({ message: err.message });
   }
 }
+
+export async function getProfile(req, res) {
+  try {
+    const profile = await getMyProfileUseCase.execute(
+      req.user.id,
+      req.user.role,
+    );
+
+    res.json({
+      success: true,
+      user: {
+        name: profile.fullName,
+        firstname: profile.firstname,
+        lastname: profile.lastname,
+        email: profile.email || "",
+        phone: profile.phone || "",
+        profileimage: profile.profileimage || null,
+      },
+    });
+  } catch (err) {
+    res.status(404).json({ success: false, message: err.message });
+  }
+}
+
+export async function updateProfile(req, res) {
+  try {
+    const { name, phone } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Name is required" });
+    }
+
+    // Split full name into first and last
+    const parts = name.trim().split(/\s+/);
+    const firstname = parts[0] || "";
+    const lastname = parts.slice(1).join(" ") || "";
+
+    const updated = await customerRepo.updateProfile(req.user.id, {
+      firstname,
+      lastname,
+      contact: phone || null,
+    });
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    res.json({ success: true, message: "Profile updated" });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+}
+
+export async function uploadAvatar(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No file uploaded" });
+    }
+
+    const filename = req.file.filename;
+
+    const updated = await customerRepo.updateProfileImage(req.user.id, filename);
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    res.json({
+      success: true,
+      message: "Avatar updated",
+      profileimage: filename,
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+}
