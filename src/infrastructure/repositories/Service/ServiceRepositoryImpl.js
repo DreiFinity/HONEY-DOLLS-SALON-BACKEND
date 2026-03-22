@@ -3,14 +3,14 @@ import { pool } from "../../db/index.js";
 export default class ServiceRepositoryImpl {
   async getAllServices() {
     const result = await pool.query(
-      "SELECT * FROM services ORDER BY serviceid ASC"
+      "SELECT * FROM service ORDER BY serviceid ASC"
     );
     return result.rows;
   }
 
   async getServiceById(serviceId) {
     const result = await pool.query(
-      "SELECT * FROM services WHERE serviceid = $1",
+      "SELECT * FROM service WHERE serviceid = $1",
       [serviceId]
     );
     return result.rows[0] || null;
@@ -18,7 +18,7 @@ export default class ServiceRepositoryImpl {
 
   async createService({ servicename, servicetype, amount, image }) {
     const result = await pool.query(
-      `INSERT INTO services (servicename, servicetype, amount, image)
+      `INSERT INTO service (servicename, servicetype, amount, image)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
       [servicename, servicetype, amount, image || null]
@@ -28,7 +28,7 @@ export default class ServiceRepositoryImpl {
 
   async updateService(serviceId, { servicename, servicetype, amount, image }) {
     const existing = await pool.query(
-      "SELECT * FROM services WHERE serviceid = $1",
+      "SELECT * FROM service WHERE serviceid = $1",
       [serviceId]
     );
 
@@ -47,7 +47,7 @@ export default class ServiceRepositoryImpl {
         : currentService.image;
 
     const result = await pool.query(
-      `UPDATE services
+      `UPDATE service
        SET servicename = $1,
            servicetype = $2,
            amount = $3,
@@ -62,7 +62,7 @@ export default class ServiceRepositoryImpl {
 
   async deleteService(serviceId) {
     const result = await pool.query(
-      "DELETE FROM services WHERE serviceid = $1 RETURNING *",
+      "DELETE FROM service WHERE serviceid = $1 RETURNING *",
       [serviceId]
     );
 

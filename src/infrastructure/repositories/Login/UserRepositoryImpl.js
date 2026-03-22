@@ -15,14 +15,36 @@ export class UserRepositoryImpl extends UserRepository {
     return rows[0];
   }
 
-  async createCustomer({ firstname, lastname, contact, userid }) {
-    const { rows } = await pool.query(
+  async createCustomer({
+    firstname,
+    lastname,
+    contact,
+    userid,
+    street,
+    barangay,
+    city,
+    province,
+    postal_code,
+  }) {
+    // 1️⃣ Create customer
+    const customerResult = await pool.query(
       `INSERT INTO customers (firstname, lastname, contact, userid)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *;`,
+     VALUES ($1, $2, $3, $4)
+     RETURNING *;`,
       [firstname, lastname, contact, userid],
     );
-    return rows[0];
+
+    const customer = customerResult.rows[0];
+
+    // 2️⃣ Insert first address (default = true)
+    await pool.query(
+      `INSERT INTO customer_addresses
+     (customerid, street, barangay, city, province, postal_code, is_default)
+     VALUES ($1,$2,$3,$4,$5,$6,true)`,
+      [customer.customerid, street, barangay, city, province, postal_code],
+    );
+
+    return customer;
   }
 
   async createStaff({ firstname, lastname, contact, branchid, userid, image }) {

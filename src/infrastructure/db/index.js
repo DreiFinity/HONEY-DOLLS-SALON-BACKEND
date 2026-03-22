@@ -1,5 +1,6 @@
 import pkg from "pg";
 import { config } from "../../config/env.js"; // go up 2 levels from db to config
+import { v4 as uuidv4 } from "uuid";
 
 const { Pool } = pkg;
 
@@ -49,10 +50,18 @@ export async function updateActiveSessionLastRoute(userId, lastRoute) {
     [userId, lastRoute],
   );
 }
+export async function getCustomerByUserId(userId) {
+  const res = await pool.query(
+    "SELECT customerid FROM customers WHERE userid = $1",
+    [userId],
+  );
+  return res.rows[0]; // returns { customerid: 3 } or undefined
+}
 
 export default {
   pool,
   getActiveSession,
   createOrUpdateActiveSession,
   updateActiveSessionLastRoute,
+  getCustomerByUserId,
 };

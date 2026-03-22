@@ -131,7 +131,7 @@ export default class QueueRepositoryImpl {
       FROM queue q
       LEFT JOIN staff s ON q.staffid = s.staffid
       LEFT JOIN queueservice qs ON q.queueid = qs.queueid
-      LEFT JOIN services sv ON qs.serviceid = sv.serviceid
+      LEFT JOIN service sv ON qs.serviceid = sv.serviceid
       WHERE q.queuedate = CURRENT_DATE
         AND q.status IN ('waiting', 'serving')
       GROUP BY
@@ -158,15 +158,15 @@ export default class QueueRepositoryImpl {
         CASE WHEN q.isarrived = true THEN 0 ELSE 1 END,
         q.arrivaltime ASC
     `;
-    
+
 
     const result = await pool.query(query);
     return result.rows;
   }
   async getTodayQueueAdmin() {
-  await this.syncTodayAppointmentsToQueue();
+    await this.syncTodayAppointmentsToQueue();
 
-  const query = `
+    const query = `
     SELECT
       q.queueid,
       q.customername,
@@ -189,15 +189,15 @@ export default class QueueRepositoryImpl {
     FROM queue q
     LEFT JOIN staff s ON q.staffid = s.staffid
     LEFT JOIN queueservice qs ON q.queueid = qs.queueid
-    LEFT JOIN services sv ON qs.serviceid = sv.serviceid
+    LEFT JOIN service sv ON qs.serviceid = sv.serviceid
     WHERE q.queuedate = CURRENT_DATE
     GROUP BY q.queueid, s.firstname, s.lastname
     ORDER BY q.arrivaltime ASC
   `;
 
-  const result = await pool.query(query);
-  return result.rows;
-}
+    const result = await pool.query(query);
+    return result.rows;
+  }
 
   async createWalkIn({
     customername,

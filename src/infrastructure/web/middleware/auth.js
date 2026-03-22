@@ -1,25 +1,3 @@
-// import jwt from "jsonwebtoken";
-
-// export default function auth(req, res, next) {
-//   const header = req.headers.authorization;
-//   if (!header) return res.status(401).json({ message: "Missing token" });
-
-//   const token = header.split(" ")[1];
-
-//   try {
-//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-//     req.user = {
-//       id: decoded.id,
-//       role: decoded.role,
-//     };
-//     // <-- we need this
-//     next();
-//   } catch (err) {
-//     return res.status(401).json({ message: "Invalid token" });
-//   }
-// }
-
-// // src/infrastructure/middleware/auth.js
 import jwt from "jsonwebtoken";
 import db from "../../db/index.js"; // import your DB functions
 import { config } from "../../../config/env.js"; // or use process.env.JWT_SECRET
@@ -42,8 +20,14 @@ export default async function auth(req, res, next) {
         .json({ message: "Session expired or another login detected" });
     }
 
-    // 2️⃣ Attach user info to req
-    req.user = { id: decoded.id, role: decoded.role };
+    const customer = await db.getCustomerByUserId(decoded.id);
+    req.user = {
+      id: decoded.id,
+      role: decoded.role,
+      customerid: customer ? customer.customerid : null,
+    };
+    // 🔹 DEBUG: check logged-in user info
+    console.log("REQ.USER after auth:", req.user);
 
     next();
   } catch (err) {

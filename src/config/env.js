@@ -12,4 +12,5 @@ export const config = {
     port: process.env.DB_PORT || 5432,
   },
   jwtSecret: process.env.JWT_SECRET || "supersecretkey",
+  paymongoSecret: process.env.PAYMONGO_SECRET_KEY,
 };

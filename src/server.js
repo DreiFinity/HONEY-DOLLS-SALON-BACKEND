@@ -3,9 +3,17 @@ import path from "path";
 import { fileURLToPath } from "url";
 import cors from "cors";
 import express from "express";
+
 import dotenv from "dotenv";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
+console.log("DIRECT ENV CHECK:", process.env.PAYMONGO_SECRET_KEY);
+
 import { config } from "./config/env.js";
 import { pool } from "./infrastructure/db/index.js";
+import onlineOrderRoutes from "./infrastructure/web/routes/onlineOrderRoutes.js";
 
 import QueueRoutes from "./infrastructure/web/routes/QueueRoutes.js";
 import QueueRepositoryImpl from "./infrastructure/repositories/Queue/QueueRepositoryImpl.js";
@@ -20,13 +28,15 @@ import ServiceRoutes from "./infrastructure/web/routes/ServiceRoutes.js";
 import ServiceRepositoryImpl from "./infrastructure/repositories/Service/ServiceRepositoryImpl.js";
 import ProductRoutes from "./infrastructure/web/routes/ProductRoutes.js";
 import ProductRepositoryImpl from "./infrastructure/repositories/Product/ProductRepositoryImpl.js";
-import orderRoutes from "./infrastructure/web/routes/orderRoutes.js";
+
 import PurchaseOrderRepositoryImpl from "./infrastructure/repositories/Purchase/PurchaseRepositoryImpl.js";
 import PurchaseOrderRoutes from "./infrastructure/web/routes/PurchaseOrderRoutes.js";
-import CustomerPaymentRepositoryImpl from "./infrastructure/repositories/Payment/CustomerPaymentRepositoryImpl.js";
-import CustomerPaymentRoutes from "./infrastructure/web/routes/CustomerPaymentRoutes.js";
 import AuthRoutes from "./infrastructure/web/routes/AuthRoutes.js";
 import FetchUserRoutes from "./infrastructure/web/routes/FetchUserRoutes.js";
+import customerAddressRoutes from "./infrastructure/web/routes/customerAddressRoutes.js";
+import ProductPaymentRoutes from "./infrastructure/web/routes/ProductPaymentRoutes.js";
+import PayMongoWebhookRoutes from "./infrastructure/web/routes/PayMongoWebhookRoutes.js";
+import CustomerPaymentOrderRoutes from "./infrastructure/web/routes/CustomerPaymentOrderRoutes.js";
 
 const appointmentRepository = new AppointmentRepositoryImpl();
 const userRepository = new UserRepositoryImpl();
@@ -35,14 +45,12 @@ const serviceRepository = new ServiceRepositoryImpl();
 const staffRepository = new StaffRepositoryImpl();
 const productRepository = new ProductRepositoryImpl();
 const purchaseOrderRepository = new PurchaseOrderRepositoryImpl();
-const paymentRepository = new CustomerPaymentRepositoryImpl();
+
 const queueRepository = new QueueRepositoryImpl();
 
 dotenv.config();
 
 const app = express();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 app.use(express.json());
 app.use(cors());
@@ -58,15 +66,24 @@ app.use("/api/staff", StaffRoute(staffRepository));
 app.use("/api/stafflogin", StaffRouteLogin);
 app.use("/api/services", ServiceRoutes(serviceRepository));
 app.use("/api/products", ProductRoutes(productRepository));
-app.use("/api/orders", orderRoutes);
-app.use("/api/purchase", PurchaseOrderRoutes(purchaseOrderRepository));
-app.use("/api/customerpayment", CustomerPaymentRoutes(paymentRepository));
-app.use("/api/user", FetchUserRoutes);
 
+app.use("/api/purchase", PurchaseOrderRoutes(purchaseOrderRepository));
+
+app.use("/api/user", FetchUserRoutes);
+app.use("/api/online-orders", onlineOrderRoutes);
+app.use("/api/customer-address", customerAddressRoutes);
+app.get("/test", (req, res) => {
+  console.log("Test route hit!");
+  res.send("Server is live");
+});
+app.use("/api/payment", ProductPaymentRoutes);
+
+app.use("/api/payment", PayMongoWebhookRoutes);
+app.use("/api/customer-payment-orders", CustomerPaymentOrderRoutes);
 // Serve uploaded images correctly
 app.use(
   "/api/uploads",
-  express.static("C:/Users/JAYVE CORONADO/Documents/SE2/BackEnd/upload")
+  express.static("C:/NAGBA_ANDREI/salon/upload")
 );
 
 // Test route

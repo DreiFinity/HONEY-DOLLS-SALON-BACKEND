@@ -158,7 +158,7 @@ export class AppointmentRepositoryImpl {
         ON a.staffid = s.staffid
       LEFT JOIN appointmentservice aps 
         ON aps.appointmentid = a.appointmentid
-      LEFT JOIN services sv 
+      LEFT JOIN service sv 
         ON aps.serviceid = sv.serviceid
       ${whereClause}
       GROUP BY 
