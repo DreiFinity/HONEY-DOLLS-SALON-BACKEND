@@ -60,7 +60,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/queue", QueueRoutes(queueRepository));
 app.use("/api/auth", AuthRoutes);
 
-app.use("/api/appointment", AppointmentRoutes(appointmentRepository));
+app.use("/api/appointment", AppointmentRoutes(appointmentRepository, queueRepository));
 app.use("/api/staff", StaffRoute(staffRepository));
 
 app.use("/api/stafflogin", StaffRouteLogin);
@@ -83,7 +83,7 @@ app.use("/api/customer-payment-orders", CustomerPaymentOrderRoutes);
 
 app.use(
   "/api/uploads",
-  express.static("C:/NAGBA_ANDREI/salon/upload")
+  express.static("C:/Users/JAYVE CORONADO/Desktop/SE/BackEnd/upload")
 );
 
 

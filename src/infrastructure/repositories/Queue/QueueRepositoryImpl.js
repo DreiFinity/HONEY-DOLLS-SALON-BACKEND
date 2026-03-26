@@ -60,9 +60,10 @@ export default class QueueRepositoryImpl {
         const queueId = queueInsertRes.rows[0].queueid;
 
         const appointmentServicesQuery = `
-          SELECT serviceid, quantity, price
-          FROM appointmentservice
-          WHERE appointmentid = $1
+          SELECT aps.serviceid, aps.quantity, aps.price
+          FROM appointmentservice aps
+          INNER JOIN service sv ON aps.serviceid = sv.serviceid
+          WHERE aps.appointmentid = $1
         `;
 
         const { rows: apptServices } = await client.query(
@@ -81,6 +82,90 @@ export default class QueueRepositoryImpl {
             [queueId, svc.serviceid, svc.quantity || 1, svc.price || null]
           );
         }
+      }
+
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async syncAppointmentToQueue(appointmentId) {
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      // Get the appointment details
+      const aptQuery = `
+        SELECT
+          a.appointmentid,
+          a.customerid,
+          a.staffid,
+          a.starttime,
+          c.firstname,
+          c.lastname
+        FROM appointment a
+        INNER JOIN customers c ON a.customerid = c.customerid
+        WHERE a.appointmentid = $1
+          AND a.status = 'confirmed'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM queue q
+            WHERE q.appointmentid = a.appointmentid
+              AND q.queuedate = DATE(a.starttime)
+          )
+      `;
+
+      const { rows } = await client.query(aptQuery, [appointmentId]);
+
+      if (rows.length === 0) {
+        await client.query("COMMIT");
+        return; // Already in queue or not confirmed
+      }
+
+      const apt = rows[0];
+
+      const queueInsertQuery = `
+        INSERT INTO queue
+          (queuedate, customerid, appointmentid, staffid, customername, source, status, arrivaltime, isarrived)
+        VALUES
+          (DATE($1), $2, $3, $4, $5, 'appointment', 'waiting', $1, false)
+        RETURNING queueid
+      `;
+
+      const customerName = `${apt.firstname} ${apt.lastname}`;
+      const queueInsertRes = await client.query(queueInsertQuery, [
+        apt.starttime,
+        apt.customerid,
+        apt.appointmentid,
+        apt.staffid,
+        customerName,
+      ]);
+
+      const queueId = queueInsertRes.rows[0].queueid;
+
+      // Copy appointment services to queue services
+      const appointmentServicesQuery = `
+        SELECT aps.serviceid, aps.quantity, aps.price
+        FROM appointmentservice aps
+        INNER JOIN service sv ON aps.serviceid = sv.serviceid
+        WHERE aps.appointmentid = $1
+      `;
+
+      const { rows: apptServices } = await client.query(
+        appointmentServicesQuery,
+        [apt.appointmentid]
+      );
+
+      for (const svc of apptServices) {
+        await client.query(
+          `INSERT INTO queueservice (queueid, serviceid, quantity, price) VALUES ($1, $2, $3, $4)`,
+          [queueId, svc.serviceid, svc.quantity || 1, svc.price || null]
+        );
       }
 
       await client.query("COMMIT");

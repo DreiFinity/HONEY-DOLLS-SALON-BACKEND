@@ -2,9 +2,9 @@ import { Router } from "express";
 import AppointmentController from "../../../interfaces/controllers/Appointment/AppointmentController.js";
 import auth from "../middleware/auth.js";
 
-export default function AppointmentRoutes(appointmentRepository) {
+export default function AppointmentRoutes(appointmentRepository, queueRepository) {
   const router = Router();
-  const controller = new AppointmentController(appointmentRepository);
+  const controller = new AppointmentController(appointmentRepository, queueRepository);
 
   router.post("/", auth, controller.create.bind(controller)); // Create
   router.put("/:id", auth, controller.update.bind(controller)); // Update / Reschedule
