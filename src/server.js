@@ -80,13 +80,13 @@ app.use("/api/payment", ProductPaymentRoutes);
 
 app.use("/api/payment", PayMongoWebhookRoutes);
 app.use("/api/customer-payment-orders", CustomerPaymentOrderRoutes);
-// Serve uploaded images correctly
+
 app.use(
   "/api/uploads",
   express.static("C:/NAGBA_ANDREI/salon/upload")
 );
 
-// Test route
+
 app.get("/", async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
