@@ -37,6 +37,7 @@ import customerAddressRoutes from "./infrastructure/web/routes/customerAddressRo
 import ProductPaymentRoutes from "./infrastructure/web/routes/ProductPaymentRoutes.js";
 import PayMongoWebhookRoutes from "./infrastructure/web/routes/PayMongoWebhookRoutes.js";
 import CustomerPaymentOrderRoutes from "./infrastructure/web/routes/CustomerPaymentOrderRoutes.js";
+import BranchRoutes from "./infrastructure/web/routes/BranchRoutes.js";
 
 const appointmentRepository = new AppointmentRepositoryImpl();
 const userRepository = new UserRepositoryImpl();
@@ -52,9 +53,9 @@ dotenv.config();
 
 const app = express();
 
-app.use(express.json());
 app.use(cors());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Routes
 app.use("/api/queue", QueueRoutes(queueRepository));
@@ -62,6 +63,7 @@ app.use("/api/auth", AuthRoutes);
 
 app.use("/api/appointment", AppointmentRoutes(appointmentRepository, queueRepository));
 app.use("/api/staff", StaffRoute(staffRepository));
+app.use("/api/branches", BranchRoutes);
 
 app.use("/api/stafflogin", StaffRouteLogin);
 app.use("/api/services", ServiceRoutes(serviceRepository));
@@ -83,7 +85,7 @@ app.use("/api/customer-payment-orders", CustomerPaymentOrderRoutes);
 
 app.use(
   "/api/uploads",
-  express.static("C:/Users/JAYVE CORONADO/Desktop/SE/BackEnd/upload")
+  express.static("C:/NAGBA_ANDREI/salon/upload")
 );
 
 

@@ -41,7 +41,9 @@ export async function getProfile(req, res) {
         lastname: profile.lastname,
         email: profile.email || "",
         phone: profile.phone || "",
-        profileimage: profile.profileimage || null,
+        profileimage: profile.profileimage || profile.image || null,
+        branchName: profile.branchName || null,
+        branchLocation: profile.branchLocation || null,
       },
     });
   } catch (err) {
@@ -51,7 +53,7 @@ export async function getProfile(req, res) {
 
 export async function updateProfile(req, res) {
   try {
-    const { name, phone } = req.body;
+    const { name, phone, email } = req.body;
 
     if (!name) {
       return res.status(400).json({ success: false, message: "Name is required" });
@@ -62,10 +64,20 @@ export async function updateProfile(req, res) {
     const firstname = parts[0] || "";
     const lastname = parts.slice(1).join(" ") || "";
 
-    const updated = await customerRepo.updateProfile(req.user.id, {
+    let repo;
+    if (req.user.role === "admin") {
+      repo = adminRepo;
+    } else if (req.user.role === "staff") {
+      repo = staffRepo;
+    } else {
+      repo = customerRepo;
+    }
+
+    const updated = await repo.updateProfile(req.user.id, {
       firstname,
       lastname,
       contact: phone || null,
+      email: email || null,
     });
 
     if (!updated) {
@@ -86,7 +98,16 @@ export async function uploadAvatar(req, res) {
 
     const filename = req.file.filename;
 
-    const updated = await customerRepo.updateProfileImage(req.user.id, filename);
+    let repo;
+    if (req.user.role === "admin") {
+      repo = adminRepo;
+    } else if (req.user.role === "staff") {
+      repo = staffRepo;
+    } else {
+      repo = customerRepo;
+    }
+
+    const updated = await repo.updateProfileImage(req.user.id, filename);
 
     if (!updated) {
       return res.status(404).json({ success: false, message: "Profile not found" });

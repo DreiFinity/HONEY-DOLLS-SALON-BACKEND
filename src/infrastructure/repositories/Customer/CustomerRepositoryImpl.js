@@ -18,15 +18,30 @@ export default class CustomerAddressRepositoryImpl extends CustomerAddressReposi
     return result.rows[0];
   }
 
-  async updateProfile(userId, { firstname, lastname, contact }) {
-    const result = await pool.query(
-      `UPDATE customers
-       SET firstname = $1, lastname = $2, contact = $3, updatedat = CURRENT_TIMESTAMP
-       WHERE userid = $4
-       RETURNING *`,
-      [firstname, lastname, contact, userId]
-    );
-    return result.rows[0] || null;
+  async updateProfile(userId, { firstname, lastname, contact, email }) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `UPDATE customers
+         SET firstname = $1, lastname = $2, contact = $3, updatedat = CURRENT_TIMESTAMP
+         WHERE userid = $4`,
+        [firstname, lastname, contact, userId]
+      );
+      if (email) {
+        await client.query(
+          `UPDATE users SET email = $1 WHERE userid = $2`,
+          [email, userId]
+        );
+      }
+      await client.query("COMMIT");
+      return await this.findByUserId(userId);
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async updateProfileImage(userId, filename) {

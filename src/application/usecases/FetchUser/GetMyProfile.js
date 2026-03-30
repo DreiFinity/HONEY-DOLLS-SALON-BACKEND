@@ -33,6 +33,8 @@ export default class GetMyProfile {
       phone: profile.contact || null,
       profileimage: profile.profileimage || null,
       branchId: profile.branchid || null,
+      branchName: profile.branchname || null,
+      branchLocation: profile.branch_location || null,
       image: profile.image || null,
     };
   }

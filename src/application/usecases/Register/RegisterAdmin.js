@@ -10,9 +10,14 @@ export default class RegisterAdmin {
     firstname,
     lastname,
     contact,
-    branchid,
     image, // <-- add image
   }) {
+    // Check if an admin already exists
+    const adminExists = await this.userRepository.findByRole("admin");
+    if (adminExists && adminExists.length > 0) {
+      throw new Error("An admin already exists. Only one admin is allowed.");
+    }
+
     const user = await this.userRepository.createUser({
       username,
       email,
@@ -24,7 +29,6 @@ export default class RegisterAdmin {
       firstname,
       lastname,
       contact,
-      branchid,
       userid: user.userid,
       image, // <-- pass image to repository
     });

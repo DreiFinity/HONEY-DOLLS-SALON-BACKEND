@@ -57,12 +57,12 @@ export class UserRepositoryImpl extends UserRepository {
     return rows[0];
   }
 
-  async createAdmin({ firstname, lastname, contact, branchid, userid, image }) {
+  async createAdmin({ firstname, lastname, contact, userid, image }) {
     const { rows } = await pool.query(
-      `INSERT INTO admin (firstname, lastname, contact, branchid, userid, image)
-     VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO admin (firstname, lastname, contact, userid, image)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *;`,
-      [firstname, lastname, contact, branchid, userid, image],
+      [firstname, lastname, contact, userid, image],
     );
     return rows[0];
   }
@@ -73,11 +73,18 @@ export class UserRepositoryImpl extends UserRepository {
     ]);
     return rows[0];
   }
+  async findByRole(role) {
+    const { rows } = await pool.query(`SELECT * FROM users WHERE role = $1`, [
+      role,
+    ]);
+    return rows;
+  }
   async getAllStaff() {
     const { rows } = await pool.query(
-      `SELECT s.*, u.username, u.email
+      `SELECT s.*, u.username, u.email, b.branchname
        FROM staff s
        JOIN users u ON s.userid = u.userid
+       LEFT JOIN branch b ON s.branchid = b.branchid
        ORDER BY s.staffid DESC`,
     );
     return rows;
@@ -117,7 +124,7 @@ export class UserRepositoryImpl extends UserRepository {
 
     if (userFields.length) {
       const userQuery = `UPDATE users SET ${userFields.join(", ")} 
-                         WHERE userid = (SELECT userid FROM staff WHERE id=$${idx})`;
+                         WHERE userid = (SELECT userid FROM staff WHERE staffid=$${idx})`;
       userValues.push(id);
       await pool.query(userQuery, userValues);
     }
@@ -151,7 +158,7 @@ export class UserRepositoryImpl extends UserRepository {
     if (staffFields.length) {
       const staffQuery = `UPDATE staff SET ${staffFields.join(
         ", ",
-      )} WHERE id=$${idx} RETURNING *`;
+      )} WHERE staffid=$${idx} RETURNING *`;
       staffValues.push(id);
       const { rows } = await pool.query(staffQuery, staffValues);
       return rows[0];
@@ -160,15 +167,15 @@ export class UserRepositoryImpl extends UserRepository {
     return null;
   }
 
-  async deleteStaff(id) {
+  async deleteStaff(staffid) {
     // Delete user first
-    const { rows } = await pool.query(`SELECT userid FROM staff WHERE id=$1`, [
-      id,
+    const { rows } = await pool.query(`SELECT userid FROM staff WHERE staffid=$1`, [
+      staffid,
     ]);
     if (rows.length === 0) throw new Error("Staff not found");
 
     const userid = rows[0].userid;
-    await pool.query(`DELETE FROM staff WHERE id=$1`, [id]);
+    await pool.query(`DELETE FROM staff WHERE staffid=$1`, [staffid]);
     await pool.query(`DELETE FROM users WHERE userid=$1`, [userid]);
 
     return { message: "Staff deleted successfully" };
