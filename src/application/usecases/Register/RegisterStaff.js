@@ -1,3 +1,5 @@
+import bcrypt from "bcryptjs";
+
 export default class RegisterStaff {
   constructor(userRepository) {
     this.userRepository = userRepository;
@@ -11,12 +13,14 @@ export default class RegisterStaff {
     lastname,
     contact,
     branchid,
-    image, // <-- add image
+    image, 
   }) {
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const user = await this.userRepository.createUser({
       username,
       email,
-      password,
+      password: hashedPassword,
       role: "staff",
     });
 

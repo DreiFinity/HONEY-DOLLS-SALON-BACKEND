@@ -42,6 +42,7 @@ export async function getProfile(req, res) {
         email: profile.email || "",
         phone: profile.phone || "",
         profileimage: profile.profileimage || profile.image || null,
+        role: profile.role || req.user.role,
         branchName: profile.branchName || null,
         branchLocation: profile.branchLocation || null,
       },

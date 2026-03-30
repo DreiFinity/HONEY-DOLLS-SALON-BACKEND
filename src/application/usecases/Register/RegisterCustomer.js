@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { config } from "../../../config/env.js";
+import { v4 as uuidv4 } from "uuid";
+import db from "../../../infrastructure/db/index.js";
 
 export default class RegisterCustomer {
   constructor(userRepository) {
@@ -44,8 +46,11 @@ export default class RegisterCustomer {
       postal_code,
     });
 
+    const loginId = uuidv4();
+    await db.createOrUpdateActiveSession(user.userid, loginId, "/dashboard");
+
     const token = jwt.sign(
-      { id: user.userid, role: user.role },
+      { id: user.userid, role: user.role, login_id: loginId },
       config.jwtSecret,
       { expiresIn: "24h" },
     );

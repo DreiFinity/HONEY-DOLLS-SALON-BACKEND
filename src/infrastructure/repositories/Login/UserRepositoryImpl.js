@@ -44,7 +44,14 @@ export class UserRepositoryImpl extends UserRepository {
       [customer.customerid, street, barangay, city, province, postal_code],
     );
 
-    return customer;
+    return {
+      ...customer,
+      street,
+      barangay,
+      city,
+      province,
+      postal_code,
+    };
   }
 
   async createStaff({ firstname, lastname, contact, branchid, userid, image }) {

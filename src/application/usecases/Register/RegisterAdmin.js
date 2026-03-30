@@ -1,3 +1,5 @@
+import bcrypt from "bcryptjs";
+
 export default class RegisterAdmin {
   constructor(userRepository) {
     this.userRepository = userRepository;
@@ -10,8 +12,9 @@ export default class RegisterAdmin {
     firstname,
     lastname,
     contact,
-    image, // <-- add image
+    image,
   }) {
+    const hashedPassword = await bcrypt.hash(password, 10);
     // Check if an admin already exists
     const adminExists = await this.userRepository.findByRole("admin");
     if (adminExists && adminExists.length > 0) {
@@ -21,7 +24,7 @@ export default class RegisterAdmin {
     const user = await this.userRepository.createUser({
       username,
       email,
-      password,
+      password: hashedPassword,
       role: "admin",
     });
 
