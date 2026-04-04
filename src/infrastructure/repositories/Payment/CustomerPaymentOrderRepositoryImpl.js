@@ -24,16 +24,18 @@ export default class CustomerPaymentOrderRepositoryImpl {
         o.status AS order_status,
         o.order_channel,
         o.createdat AS order_created,
-        o.shipping_street,
-        o.shipping_barangay,
-        o.shipping_city,
-        o.shipping_province,
-        o.shipping_postal_code,
-        o.courier_name,
-        o.tracking_number,
-        o.estimated_delivery_date,
-        o.shipped_at,
-        o.delivered_at,
+        cp.shipping_street,
+        cp.shipping_barangay,
+        cp.shipping_city,
+        cp.shipping_province,
+        cp.shipping_postal_code,
+        cp.courier_name,
+        cp.tracking_number,
+        cp.estimated_delivery_date,
+        cp.shipped_at,
+        cp.delivered_at,
+        cp.refunded_at,
+        cp.refund_receipt_image,
         od.orderdetailsid,
         od.quantity,
         od.unit_price,
@@ -81,16 +83,18 @@ export default class CustomerPaymentOrderRepositoryImpl {
         o.status AS order_status,
         o.order_channel,
         o.createdat AS order_created,
-        o.shipping_street,
-        o.shipping_barangay,
-        o.shipping_city,
-        o.shipping_province,
-        o.shipping_postal_code,
-        o.courier_name,
-        o.tracking_number,
-        o.estimated_delivery_date,
-        o.shipped_at,
-        o.delivered_at,
+        cp.shipping_street,
+        cp.shipping_barangay,
+        cp.shipping_city,
+        cp.shipping_province,
+        cp.shipping_postal_code,
+        cp.courier_name,
+        cp.tracking_number,
+        cp.estimated_delivery_date,
+        cp.shipped_at,
+        cp.delivered_at,
+        cp.refunded_at,
+        cp.refund_receipt_image,
         od.orderdetailsid,
         od.quantity,
         od.unit_price,
@@ -142,16 +146,18 @@ export default class CustomerPaymentOrderRepositoryImpl {
         o.status AS order_status,
         o.order_channel,
         o.createdat AS order_created,
-        o.shipping_street,
-        o.shipping_barangay,
-        o.shipping_city,
-        o.shipping_province,
-        o.shipping_postal_code,
-        o.courier_name,
-        o.tracking_number,
-        o.estimated_delivery_date,
-        o.shipped_at,
-        o.delivered_at,
+        cp.shipping_street,
+        cp.shipping_barangay,
+        cp.shipping_city,
+        cp.shipping_province,
+        cp.shipping_postal_code,
+        cp.courier_name,
+        cp.tracking_number,
+        cp.estimated_delivery_date,
+        cp.shipped_at,
+        cp.delivered_at,
+        cp.refunded_at,
+        cp.refund_receipt_image,
         od.orderdetailsid,
         od.quantity,
         od.unit_price,
@@ -202,16 +208,18 @@ export default class CustomerPaymentOrderRepositoryImpl {
         o.status AS order_status,
         o.order_channel,
         o.createdat AS order_created,
-        o.shipping_street,
-        o.shipping_barangay,
-        o.shipping_city,
-        o.shipping_province,
-        o.shipping_postal_code,
-        o.courier_name,
-        o.tracking_number,
-        o.estimated_delivery_date,
-        o.shipped_at,
-        o.delivered_at,
+        cp.shipping_street,
+        cp.shipping_barangay,
+        cp.shipping_city,
+        cp.shipping_province,
+        cp.shipping_postal_code,
+        cp.courier_name,
+        cp.tracking_number,
+        cp.estimated_delivery_date,
+        cp.shipped_at,
+        cp.delivered_at,
+        cp.refunded_at,
+        cp.refund_receipt_image,
         od.orderdetailsid,
         od.quantity,
         od.unit_price,
@@ -242,23 +250,32 @@ export default class CustomerPaymentOrderRepositoryImpl {
    * Update tracking number for all orders linked to a customerpayment.
    * Sets shipped_at = NOW(), status = 'shipping' on each order.
    */
-  async updateTrackingNumber(customerpaymentid, tracking_number) {
+  async updateTrackingNumber(customerpaymentid, tracking_number, courier_name) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
-      // Update all linked orders: tracking_number, shipped_at, status → shipping
+      // Update customerpayment: tracking_number, courier_name, shipped_at
+      await client.query(
+        `UPDATE customerpayment
+         SET tracking_number = $1,
+             courier_name = $2,
+             shipped_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE customerpaymentid = $3`,
+        [tracking_number, courier_name, customerpaymentid],
+      );
+
+      // Update all linked orders: status → shipping
       const result = await client.query(
         `UPDATE orders o
-         SET tracking_number = $1,
-             shipped_at = CURRENT_TIMESTAMP,
-             status = 'shipping',
+         SET status = 'shipping',
              updatedat = CURRENT_TIMESTAMP
          FROM customerpayment_orders cpo
          WHERE o.orderid = cpo.orderid
-           AND cpo.customerpaymentid = $2
+           AND cpo.customerpaymentid = $1
          RETURNING o.*`,
-        [tracking_number, customerpaymentid],
+        [customerpaymentid],
       );
 
       if (result.rowCount === 0) {
@@ -286,10 +303,18 @@ export default class CustomerPaymentOrderRepositoryImpl {
     try {
       await client.query("BEGIN");
 
+      // Update customerpayment: delivered_at
+      await client.query(
+        `UPDATE customerpayment
+         SET delivered_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE customerpaymentid = $1`,
+        [customerpaymentid],
+      );
+
       const result = await client.query(
         `UPDATE orders o
-         SET delivered_at = CURRENT_TIMESTAMP,
-             status = 'delivered',
+         SET status = 'delivered',
              updatedat = CURRENT_TIMESTAMP
          FROM customerpayment_orders cpo
          WHERE o.orderid = cpo.orderid
@@ -333,6 +358,18 @@ export default class CustomerPaymentOrderRepositoryImpl {
           paymongo_id: row.paymongo_id,
           delivery_fee: row.delivery_fee,
           payment_date: row.payment_date,
+          shipping_street: row.shipping_street,
+          shipping_barangay: row.shipping_barangay,
+          shipping_city: row.shipping_city,
+          shipping_province: row.shipping_province,
+          shipping_postal_code: row.shipping_postal_code,
+          courier_name: row.courier_name,
+          tracking_number: row.tracking_number,
+          estimated_delivery_date: row.estimated_delivery_date,
+          shipped_at: row.shipped_at,
+          delivered_at: row.delivered_at,
+          refunded_at: row.refunded_at,
+          refund_receipt_image: row.refund_receipt_image,
           customer: {
             customerid: row.customerid,
             firstname: row.customer_firstname,
@@ -353,16 +390,6 @@ export default class CustomerPaymentOrderRepositoryImpl {
           order_status: row.order_status,
           order_channel: row.order_channel,
           order_created: row.order_created,
-          shipping_street: row.shipping_street,
-          shipping_barangay: row.shipping_barangay,
-          shipping_city: row.shipping_city,
-          shipping_province: row.shipping_province,
-          shipping_postal_code: row.shipping_postal_code,
-          courier_name: row.courier_name,
-          tracking_number: row.tracking_number,
-          estimated_delivery_date: row.estimated_delivery_date,
-          shipped_at: row.shipped_at,
-          delivered_at: row.delivered_at,
           orderdetails: [],
           _detailsSet: new Set(),
         };
@@ -409,5 +436,29 @@ export default class CustomerPaymentOrderRepositoryImpl {
     }
 
     return payments;
+  }
+
+  /**
+   * Upload refund proof (updates customerpayment with image + timestamp)
+   */
+  async uploadRefundProof(customerpaymentid, filename) {
+    const result = await pool.query(
+      `
+      UPDATE customerpayment
+      SET 
+        refund_receipt_image = $1,
+        refunded_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE customerpaymentid = $2
+      RETURNING *
+      `,
+      [filename, customerpaymentid]
+    );
+
+    if (result.rowCount === 0) {
+      throw new Error(`Payment Order ${customerpaymentid} not found.`);
+    }
+
+    return result.rows[0];
   }
 }

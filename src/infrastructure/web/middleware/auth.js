@@ -12,9 +12,20 @@ export default async function auth(req, res, next) {
     const decoded = jwt.verify(token, config.jwtSecret);
 
     // 1️⃣ Check active session from DB
-    const activeSession = await db.getActiveSession(decoded.id);
+    let activeSession;
+    try {
+      activeSession = await db.getActiveSession(decoded.id);
+    } catch (dbErr) {
+      console.error("DB Error in auth middleware:", dbErr.message);
+      return res.status(500).json({ message: "Internal server error during auth" });
+    }
 
     if (!activeSession || activeSession.login_id !== decoded.login_id) {
+      console.log("Auth failed: Session mismatch or missing", {
+        sessionId: activeSession ? activeSession.login_id : "none",
+        tokenSessionId: decoded.login_id,
+        userId: decoded.id
+      });
       return res
         .status(401)
         .json({ message: "Session expired or another login detected" });
@@ -27,10 +38,13 @@ export default async function auth(req, res, next) {
       customerid: customer ? customer.customerid : null,
     };
     // 🔹 DEBUG: check logged-in user info
-    console.log("REQ.USER after auth:", req.user);
+    // console.log("REQ.USER after auth:", req.user);
 
     next();
   } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Token expired" });
+    }
     return res.status(401).json({ message: "Invalid token" });
   }
 }

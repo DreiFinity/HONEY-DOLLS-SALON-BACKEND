@@ -59,16 +59,20 @@ export default class GetCustomerPaymentOrders {
    * Update tracking number for a payment's orders.
    * Sets shipped_at + status = 'shipping' on all linked orders.
    */
-  async updateTracking(customerpaymentid, tracking_number) {
+  async updateTracking(customerpaymentid, tracking_number, courier_name) {
     if (!customerpaymentid) {
       throw new Error("Payment ID is required");
     }
     if (!tracking_number || !tracking_number.trim()) {
       throw new Error("Tracking number is required");
     }
+    if (!courier_name || !courier_name.trim()) {
+      throw new Error("Courier name is required");
+    }
     return await this.repository.updateTrackingNumber(
       customerpaymentid,
       tracking_number.trim(),
+      courier_name.trim(),
     );
   }
 
@@ -81,5 +85,18 @@ export default class GetCustomerPaymentOrders {
       throw new Error("Payment ID is required");
     }
     return await this.repository.markOrdersDelivered(customerpaymentid);
+  }
+
+  /**
+   * Upload refund proof for a cancelled payment.
+   */
+  async uploadRefundProof(customerpaymentid, filename) {
+    if (!customerpaymentid) {
+      throw new Error("Payment ID is required");
+    }
+    if (!filename) {
+      throw new Error("Refund proof filename is required");
+    }
+    return await this.repository.uploadRefundProof(customerpaymentid, filename);
   }
 }

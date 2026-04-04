@@ -76,12 +76,13 @@ export default class CustomerPaymentOrderController {
   async updateTracking(req, res) {
     try {
       const { id } = req.params;
-      const { tracking_number } = req.body;
+      const { tracking_number, courier_name } = req.body;
 
       const updatedOrders =
         await this.getCustomerPaymentOrdersUseCase.updateTracking(
           Number(id),
           tracking_number,
+          courier_name,
         );
 
       res.json({
@@ -114,6 +115,38 @@ export default class CustomerPaymentOrderController {
       });
     } catch (err) {
       console.error("Error marking orders as delivered:", err.message);
+      const status = err.message.includes("not found") ? 404 : 400;
+      res.status(status).json({ success: false, message: err.message });
+    }
+  }
+
+  /**
+   * PUT /api/customer-payment-orders/:id/refund-proof
+   * Body: form-data with 'receipt' file
+   * Upload refund receipt image and set refunded_at
+   */
+  async uploadRefundProof(req, res) {
+    try {
+      const { id } = req.params;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ success: false, message: "No refund receipt image provided." });
+      }
+
+      // We store the filename so the frontend can build the URL e.g., API_BASE.replace('/api', '') + /uploads/ + fileName
+      const updatedPayment = await this.getCustomerPaymentOrdersUseCase.uploadRefundProof(
+        Number(id),
+        file.filename
+      );
+
+      res.json({
+        success: true,
+        message: "Refund proof uploaded successfully.",
+        data: updatedPayment,
+      });
+    } catch (err) {
+      console.error("Error uploading refund proof:", err.message);
       const status = err.message.includes("not found") ? 404 : 400;
       res.status(status).json({ success: false, message: err.message });
     }

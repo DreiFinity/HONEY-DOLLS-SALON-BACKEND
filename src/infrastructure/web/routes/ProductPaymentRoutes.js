@@ -14,6 +14,7 @@ const createProductPaymentUseCase = new CreateProductPayment(repository);
 const controller = new ProductPaymentController(createProductPaymentUseCase);
 
 router.post("/product-payment", auth, controller.create.bind(controller));
+router.post("/confirm-payment", auth, controller.paymentSuccess.bind(controller));
 
 router.get("/payment-success", auth, async (req, res) => {
   try {
@@ -37,16 +38,7 @@ router.get("/latest-receipt", auth, async (req, res) => {
 
 router.get("/my-orders", auth, controller.getMyOrders.bind(controller));
 
-router.put("/cancel/:reference_code", auth, async (req, res) => {
-  try {
-    const cancelUseCase = new CancelOrder(repository);
-    const cancelController = new ProductPaymentController(null);
-    cancelController.cancelUseCase = cancelUseCase;
-    return cancelController.cancel(req, res);
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
+router.put("/cancel/:reference_code", auth, controller.cancel.bind(controller));
 
 // ---------------- TRACK PARCEL WITH TRACKINGMORE
 router.get("/track/:tracking_number", auth, async (req, res) => {
@@ -142,7 +134,25 @@ router.get("/track/:tracking_number", auth, async (req, res) => {
         axiosConfig
       );
 
-      res.json({ success: true, data: response.data.data });
+      const trackingData = response.data.data;
+      if (trackingData.delivery_status === 'delivered') {
+        try {
+          await repository.markDeliveredByTracking(tracking_number);
+          console.log(`Auto-updated DB to delivered for tracking: ${tracking_number}`);
+        } catch (dbErr) {
+          console.error(`Failed to auto-update DB for tracking ${tracking_number}:`, dbErr.message);
+        }
+      } else if (trackingData.scheduled_delivery_date) {
+        try {
+          // Sync estimated delivery date if not delivered yet
+          await repository.updateEstimatedDeliveryByTracking(tracking_number, trackingData.scheduled_delivery_date);
+          console.log(`Synced estimated delivery date for tracking: ${tracking_number}`);
+        } catch (dbErr) {
+          console.error(`Failed to sync estimated delivery date for tracking ${tracking_number}:`, dbErr.message);
+        }
+      }
+
+      res.json({ success: true, data: trackingData });
     } catch (err) {
       const metaCode = err.response?.data?.meta?.code;
       const statusCode = err.response?.status;
@@ -155,6 +165,24 @@ router.get("/track/:tracking_number", auth, async (req, res) => {
           axiosConfig
         );
         const trackingData = getResponse.data.data?.[0] || getResponse.data.data;
+
+        if (trackingData.delivery_status === 'delivered') {
+          try {
+            await repository.markDeliveredByTracking(tracking_number);
+            console.log(`Auto-updated DB to delivered for tracking: ${tracking_number}`);
+          } catch (dbErr) {
+            console.error(`Failed to auto-update DB for tracking ${tracking_number}:`, dbErr.message);
+          }
+        } else if (trackingData.scheduled_delivery_date) {
+          try {
+            // Sync estimated delivery date if not delivered yet
+            await repository.updateEstimatedDeliveryByTracking(tracking_number, trackingData.scheduled_delivery_date);
+            console.log(`Synced estimated delivery date for tracking: ${tracking_number}`);
+          } catch (dbErr) {
+            console.error(`Failed to sync estimated delivery date for tracking ${tracking_number}:`, dbErr.message);
+          }
+        }
+
         return res.json({ success: true, data: trackingData });
       }
 

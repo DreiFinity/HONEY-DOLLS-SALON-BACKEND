@@ -50,8 +50,11 @@ export default class CustomerProductPaymentRepositoryImpl {
         `
         INSERT INTO customerpayment
         (customerid, reference_code, method, status, currency,
-         checkout_url, paymongo_id, delivery_fee)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         checkout_url, paymongo_id, delivery_fee, 
+         shipping_street, shipping_barangay, shipping_city, 
+         shipping_province, shipping_postal_code, courier_name, 
+         estimated_delivery_date)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
         RETURNING *
         `,
         [
@@ -63,6 +66,13 @@ export default class CustomerProductPaymentRepositoryImpl {
           data.checkout_url,
           data.paymongo_id,
           data.delivery_fee || 0,
+          data.shipping_street,
+          data.shipping_barangay,
+          data.shipping_city,
+          data.shipping_province,
+          data.shipping_postal_code,
+          data.courier_name,
+          data.estimated_delivery_date,
         ],
       );
 
@@ -82,26 +92,10 @@ export default class CustomerProductPaymentRepositoryImpl {
           `
           UPDATE orders
           SET status='processing',
-              shipping_street=$2,
-              shipping_barangay=$3,
-              shipping_city=$4,
-              shipping_province=$5,
-              shipping_postal_code=$6,
-              courier_name=$7,
-              estimated_delivery_date=$8,
               updatedat=CURRENT_TIMESTAMP
           WHERE orderid=$1
           `,
-          [
-            orderid,
-            data.shipping_street,
-            data.shipping_barangay,
-            data.shipping_city,
-            data.shipping_province,
-            data.shipping_postal_code,
-            data.courier_name,
-            data.estimated_delivery_date,
-          ],
+          [orderid],
         );
       }
 
@@ -123,13 +117,13 @@ export default class CustomerProductPaymentRepositoryImpl {
     SELECT 
       o.orderid,
       o.status,
-      o.shipping_street,
-      o.shipping_barangay,
-      o.shipping_city,
-      o.shipping_province,
-      o.shipping_postal_code,
-      o.courier_name,
-      o.estimated_delivery_date,
+      cp.shipping_street,
+      cp.shipping_barangay,
+      cp.shipping_city,
+      cp.shipping_province,
+      cp.shipping_postal_code,
+      cp.courier_name,
+      cp.estimated_delivery_date,
       cp.method,
       cp.reference_code,
       cp.delivery_fee,
@@ -266,18 +260,21 @@ export default class CustomerProductPaymentRepositoryImpl {
       cp.checkout_url,
       cp.paymongo_id,
       cp.delivery_fee,
+      cp.shipping_street,
+      cp.shipping_barangay,
+      cp.shipping_city,
+      cp.shipping_province,
+      cp.shipping_postal_code,
+      cp.courier_name,
+      cp.tracking_number,
+      cp.estimated_delivery_date,
+      cp.refund_receipt_image,
+      cp.refunded_at,
       cp.updated_at AS payment_date,
       json_agg(
         json_build_object(
           'orderid', o.orderid,
-          'shipping_street', o.shipping_street,
-          'shipping_barangay', o.shipping_barangay,
-          'shipping_city', o.shipping_city,
-          'shipping_province', o.shipping_province,
-          'shipping_postal_code', o.shipping_postal_code,
-          'courier_name', o.courier_name,
-          'tracking_number', o.tracking_number,
-          'estimated_delivery_date', o.estimated_delivery_date,
+          'status', o.status,
           'items', (
             SELECT json_agg(
               json_build_object(
@@ -322,18 +319,21 @@ export default class CustomerProductPaymentRepositoryImpl {
       cp.checkout_url,
       cp.paymongo_id,
       cp.delivery_fee,
+      cp.shipping_street,
+      cp.shipping_barangay,
+      cp.shipping_city,
+      cp.shipping_province,
+      cp.shipping_postal_code,
+      cp.courier_name,
+      cp.tracking_number,
+      cp.estimated_delivery_date,
+      cp.refund_receipt_image,
+      cp.refunded_at,
       cp.updated_at AS payment_date,
       json_agg(
         json_build_object(
           'orderid', o.orderid,
-          'shipping_street', o.shipping_street,
-          'shipping_barangay', o.shipping_barangay,
-          'shipping_city', o.shipping_city,
-          'shipping_province', o.shipping_province,
-          'shipping_postal_code', o.shipping_postal_code,
-          'courier_name', o.courier_name,
-          'tracking_number', o.tracking_number,
-          'estimated_delivery_date', o.estimated_delivery_date,
+          'status', o.status,
           'items', (
             SELECT json_agg(
               json_build_object(
@@ -373,14 +373,14 @@ export default class CustomerProductPaymentRepositoryImpl {
         cp.status,
         cp.currency,
         cp.delivery_fee,
+        cp.shipping_street,
+        cp.shipping_barangay,
+        cp.shipping_city,
+        cp.shipping_province,
+        cp.shipping_postal_code,
+        cp.courier_name,
+        cp.estimated_delivery_date,
         o.orderid,
-        o.shipping_street,
-        o.shipping_barangay,
-        o.shipping_city,
-        o.shipping_province,
-        o.shipping_postal_code,
-        o.courier_name,
-        o.estimated_delivery_date,
         od.productid,
         od.quantity,
         od.unit_price,
@@ -402,26 +402,115 @@ export default class CustomerProductPaymentRepositoryImpl {
   }
 
   async cancelOrdersByReferenceCode(reference_code, customerid) {
-    const result = await pool.query(
-      `
-      UPDATE orders o
-      SET status='cancelled', updatedat=CURRENT_TIMESTAMP
-      FROM customerpayment cp
-      WHERE o.orderid=cp.orderid
-        AND cp.reference_code=$1
-        AND o.customerid=$2
-        AND o.status='shipping'
-      RETURNING o.*;
-      `,
-      [reference_code, customerid],
-    );
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    if (result.rowCount === 0) {
-      throw new Error(
-        "No shipping orders found for this reference code or already cancelled/delivered.",
+      // 1. Find the identifying customerpayment to get its ID
+      const cpResult = await client.query(
+        `SELECT customerpaymentid FROM customerpayment 
+         WHERE reference_code = $1 AND customerid = $2`,
+        [reference_code, customerid]
       );
+
+      if (cpResult.rowCount === 0) {
+        throw new Error("Payment record not found or unauthorized");
+      }
+
+      const cpId = cpResult.rows[0].customerpaymentid;
+
+      // 2. Update all linked orders to cancelled if they are not already delivered/shipped
+      const result = await client.query(
+        `
+        UPDATE orders o
+        SET status = 'cancelled', updatedat = CURRENT_TIMESTAMP
+        FROM customerpayment_orders cpo
+        WHERE o.orderid = cpo.orderid
+          AND cpo.customerpaymentid = $1
+          AND o.status IN ('pending', 'processing')
+        RETURNING o.*;
+        `,
+        [cpId]
+      );
+
+      if (result.rowCount === 0) {
+        // If it was already shipping, we might have hit a wall based on the requirement.
+        // But let's check if there are orders that are just 'paid' etc.
+        // If we want to be more permissive, we could allow 'shipping' as well.
+        // For now, let's stick to 'pending' and 'processing' to be safe.
+        throw new Error("No eligible orders found to cancel. They might already be shipping or delivered.");
+      }
+
+      await client.query("COMMIT");
+      return result.rows;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async markDeliveredByTracking(tracking_number) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // 1. Update customerpayment delivered_at if not already set
+      const cpUpdate = await client.query(
+        `UPDATE customerpayment 
+         SET delivered_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE tracking_number = $1 AND delivered_at IS NULL
+         RETURNING customerpaymentid`,
+        [tracking_number]
+      );
+
+      if (cpUpdate.rowCount === 0) {
+        // Either not found or already marked delivered
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      const cpId = cpUpdate.rows[0].customerpaymentid;
+
+      // 2. Update all linked orders to complete/delivered
+      await client.query(
+        `
+        UPDATE orders o
+        SET status = 'completed', updatedat = CURRENT_TIMESTAMP
+        FROM customerpayment_orders cpo
+        WHERE o.orderid = cpo.orderid
+          AND cpo.customerpaymentid = $1
+          AND o.status != 'completed'
+        `,
+        [cpId]
+      );
+
+      await client.query("COMMIT");
+      return cpId;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateEstimatedDeliveryByTracking(tracking_number, estimated_date) {
+    if (!estimated_date) return false;
+    try {
+      const result = await pool.query(
+        `UPDATE customerpayment
+         SET estimated_delivery_date = $2
+         WHERE tracking_number = $1
+         RETURNING customerpaymentid`,
+        [tracking_number, estimated_date]
+      );
+      return result.rowCount > 0;
+    } catch (err) {
+      console.error("Error updating estimated_delivery_date:", err.message);
+      return false;
     }
 
-    return result.rows;
   }
 }

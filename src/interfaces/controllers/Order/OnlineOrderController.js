@@ -57,19 +57,6 @@ export const createOnlineOrder = async (req, res) => {
       });
     }
 
-    // 5️⃣ Estimate delivery date
-    let transit_days = 2;
-    const city = orderData.shipping_city?.toLowerCase();
-    if (city === "cebu") transit_days = 3;
-    else if (city === "davao") transit_days = 5;
-
-    const buffer = 1;
-    const estimated_delivery_date = new Date();
-    estimated_delivery_date.setDate(
-      estimated_delivery_date.getDate() + transit_days + buffer,
-    );
-    orderData.estimated_delivery_date = estimated_delivery_date;
-
     // 6️⃣ Create order and order details
     const order = await onlineOrderRepo.create(orderData);
 

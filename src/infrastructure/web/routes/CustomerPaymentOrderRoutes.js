@@ -4,6 +4,7 @@ import GetCustomerPaymentOrders from "../../../application/usecases/Payment/GetC
 import CustomerPaymentOrderController from "../../../interfaces/controllers/Payment/CustomerPaymentOrderController.js";
 import auth from "../middleware/auth.js";
 import roleCheck from "../middleware/roleCheck.js";
+import { upload } from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -41,6 +42,13 @@ router.put(
 router.put(
   "/:id/delivered",
   controller.markDelivered.bind(controller),
+);
+
+// ── Upload refund proof → sets refunded_at + refund_receipt_image ─
+router.put(
+  "/:id/refund-proof",
+  upload.single("receipt"),
+  controller.uploadRefundProof.bind(controller),
 );
 
 export default router;

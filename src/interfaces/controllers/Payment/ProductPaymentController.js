@@ -59,7 +59,7 @@ export default class ProductPaymentController {
   }
   async paymentSuccess(req, res) {
     try {
-      const session_id = req.query.session_id;
+      const session_id = req.query.session_id || req.body.paymongo_id || req.body.session_id;
       const customerid = req.user.customerid;
 
       const result =
