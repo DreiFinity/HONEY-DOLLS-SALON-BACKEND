@@ -39,6 +39,33 @@ export default class SupplierPurchaseController {
     }
   };
 
+  addPaymentHandler = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { payment } = req.body;
+      
+      let checkout = null;
+      const dbAmount = payment.isDownpayment ? payment.amount : 0;
+
+      if (payment && (payment.method === 'GCASH' || payment.method === 'CARD')) {
+        checkout = await this.payUseCase.createCheckout(id, payment.amount, payment.method, payment.isDownpayment);
+      } else {
+        await this.payUseCase.supplierPurchaseRepo.recordPayment({
+          purchaseid: id,
+          amount: dbAmount,
+          method: payment.method,
+          paymongo_id: null,
+          checkout_url: null,
+          status: 'PENDING'
+        });
+      }
+
+      res.status(201).json({ success: true, checkout });
+    } catch (err) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  };
+
   listHandler = async (req, res) => {
     try {
       const result = await this.listUseCase.execute();

@@ -25,6 +25,7 @@ const controller = new SupplierPurchaseController(
 router.use(auth);
 
 router.post("/", controller.createHandler);
+router.post("/:id/payment", controller.addPaymentHandler);
 router.get("/records", controller.recordsHandler);
 router.put("/records/:id/arrival", controller.arrivalHandler);
 router.get("/", controller.listHandler);
