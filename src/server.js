@@ -40,6 +40,7 @@ import CustomerPaymentOrderRoutes from "./infrastructure/web/routes/CustomerPaym
 import BranchRoutes from "./infrastructure/web/routes/BranchRoutes.js";
 import SupplierPurchaseRoutes from "./infrastructure/web/routes/SupplierPurchaseRoutes.js";
 import SupplierRoutes from "./infrastructure/web/routes/SupplierRoutes.js";
+import InventoryRoutes from "./infrastructure/web/routes/InventoryRoutes.js";
 
 const appointmentRepository = new AppointmentRepositoryImpl();
 const userRepository = new UserRepositoryImpl();
@@ -86,6 +87,7 @@ app.use("/api/payment", ProductPaymentRoutes);
 
 app.use("/api/payment", PayMongoWebhookRoutes);
 app.use("/api/customer-payment-orders", CustomerPaymentOrderRoutes);
+app.use("/api/inventory", InventoryRoutes);
 
 app.use(
   "/api/uploads",

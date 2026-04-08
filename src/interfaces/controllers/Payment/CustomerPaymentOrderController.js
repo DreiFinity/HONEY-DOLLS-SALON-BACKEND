@@ -76,13 +76,14 @@ export default class CustomerPaymentOrderController {
   async updateTracking(req, res) {
     try {
       const { id } = req.params;
-      const { tracking_number, courier_name } = req.body;
+      const { tracking_number, courier_name, fulfillment_branchid } = req.body;
 
       const updatedOrders =
         await this.getCustomerPaymentOrdersUseCase.updateTracking(
           Number(id),
           tracking_number,
           courier_name,
+          fulfillment_branchid,
         );
 
       res.json({

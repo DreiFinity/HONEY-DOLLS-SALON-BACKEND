@@ -10,32 +10,33 @@ export default class ProductRepositoryImpl {
   }
 
   async create(productData) {
-    const { prodname, prodcat, price, prodimage } = productData;
+    const { prodname, prodcat, price, supplier_price, prodimage } = productData;
 
     const query = `
-      INSERT INTO products (prodname, prodcat, price, prodimage)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO products (prodname, prodcat, price, supplier_price, prodimage)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
 
-    const values = [prodname, prodcat, price, prodimage];
+    const values = [prodname, prodcat, price, supplier_price || 0, prodimage];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
   async update(productid, productData) {
-    const { prodname, prodcat, price, prodimage } = productData;
+    const { prodname, prodcat, price, supplier_price, prodimage } = productData;
 
     const query = `
       UPDATE products
       SET prodname = $1,
           prodcat = $2,
           price = $3,
-          prodimage = COALESCE($4, prodimage)
-      WHERE productid = $5
+          supplier_price = $4,
+          prodimage = COALESCE($5, prodimage)
+      WHERE productid = $6
       RETURNING *
     `;
 
-    const values = [prodname, prodcat, price, prodimage, productid];
+    const values = [prodname, prodcat, price, supplier_price || 0, prodimage, productid];
     const result = await pool.query(query, values);
     return result.rows[0];
   }

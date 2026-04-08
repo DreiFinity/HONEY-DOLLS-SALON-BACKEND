@@ -155,8 +155,9 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
       `;
       const poResult = await client.query(updatePoQuery, [status, purchaseid]);
 
-      // 2. Automated Payment Settle for CASH upon Arrival
+      // 2. Automated Payment Settle for CASH upon Arrival + Increment Stock
       if (status === 'ARRIVED') {
+        // Mark cash payments as paid
         const updatePayQuery = `
           UPDATE supplierpayment
           SET status = 'PAID'
@@ -211,6 +212,7 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
             'quantity', pd.quantity,
             'prodname', prod.prodname,
             'price', prod.price,
+            'supplier_price', COALESCE(prod.supplier_price, 0),
             'prodimage', prod.prodimage
           ))
           FROM supplierpurchasedetails pd

@@ -59,7 +59,7 @@ export default class GetCustomerPaymentOrders {
    * Update tracking number for a payment's orders.
    * Sets shipped_at + status = 'shipping' on all linked orders.
    */
-  async updateTracking(customerpaymentid, tracking_number, courier_name) {
+  async updateTracking(customerpaymentid, tracking_number, courier_name, fulfillment_branchid) {
     if (!customerpaymentid) {
       throw new Error("Payment ID is required");
     }
@@ -69,10 +69,14 @@ export default class GetCustomerPaymentOrders {
     if (!courier_name || !courier_name.trim()) {
       throw new Error("Courier name is required");
     }
+    if (!fulfillment_branchid) {
+      throw new Error("Fulfillment branch is required");
+    }
     return await this.repository.updateTrackingNumber(
       customerpaymentid,
       tracking_number.trim(),
       courier_name.trim(),
+      fulfillment_branchid
     );
   }
 

@@ -250,20 +250,21 @@ export default class CustomerPaymentOrderRepositoryImpl {
    * Update tracking number for all orders linked to a customerpayment.
    * Sets shipped_at = NOW(), status = 'shipping' on each order.
    */
-  async updateTrackingNumber(customerpaymentid, tracking_number, courier_name) {
+  async updateTrackingNumber(customerpaymentid, tracking_number, courier_name, fulfillment_branchid) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
-      // Update customerpayment: tracking_number, courier_name, shipped_at
+      // Update customerpayment: tracking_number, courier_name, shipped_at, fulfillment_branchid
       await client.query(
         `UPDATE customerpayment
          SET tracking_number = $1,
              courier_name = $2,
              shipped_at = CURRENT_TIMESTAMP,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE customerpaymentid = $3`,
-        [tracking_number, courier_name, customerpaymentid],
+             updated_at = CURRENT_TIMESTAMP,
+             fulfillment_branchid = $3
+         WHERE customerpaymentid = $4`,
+        [tracking_number, courier_name, fulfillment_branchid, customerpaymentid],
       );
 
       // Update all linked orders: status → shipping
