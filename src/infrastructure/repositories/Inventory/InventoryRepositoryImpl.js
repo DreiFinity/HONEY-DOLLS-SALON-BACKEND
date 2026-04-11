@@ -18,8 +18,9 @@ export default class InventoryRepositoryImpl {
           SUM(od.quantity) as total_out
         FROM customerpayment cp
         JOIN customerpayment_orders cpo ON cp.customerpaymentid = cpo.customerpaymentid
-        JOIN orderdetails od ON cpo.orderid = od.orderid
-        WHERE cp.fulfillment_branchid = $1 AND cp.status IN ('shipping', 'delivered')
+        JOIN orders o ON o.orderid = cpo.orderid
+        JOIN orderdetails od ON od.orderid = o.orderid
+        WHERE cp.fulfillment_branchid = $1 AND o.status IN ('shipping', 'delivered')
         GROUP BY od.productid
       )
       SELECT 
@@ -53,10 +54,10 @@ export default class InventoryRepositoryImpl {
         SELECT 
           od.productid,
           SUM(od.quantity) as total_out
-        FROM customerpayment cp
-        JOIN customerpayment_orders cpo ON cp.customerpaymentid = cpo.customerpaymentid
-        JOIN orderdetails od ON cpo.orderid = od.orderid
-        WHERE cp.status IN ('shipping', 'delivered')
+        FROM customerpayment_orders cpo
+        JOIN orders o ON o.orderid = cpo.orderid
+        JOIN orderdetails od ON od.orderid = o.orderid
+        WHERE o.status IN ('shipping', 'delivered')
         GROUP BY od.productid
       )
       SELECT 
