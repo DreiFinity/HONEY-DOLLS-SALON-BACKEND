@@ -41,6 +41,7 @@ import BranchRoutes from "./infrastructure/web/routes/BranchRoutes.js";
 import SupplierPurchaseRoutes from "./infrastructure/web/routes/SupplierPurchaseRoutes.js";
 import SupplierRoutes from "./infrastructure/web/routes/SupplierRoutes.js";
 import InventoryRoutes from "./infrastructure/web/routes/InventoryRoutes.js";
+import ReturnRoutes from "./infrastructure/web/routes/ReturnRoutes.js";
 
 const appointmentRepository = new AppointmentRepositoryImpl();
 const userRepository = new UserRepositoryImpl();
@@ -88,10 +89,11 @@ app.use("/api/payment", ProductPaymentRoutes);
 app.use("/api/payment", PayMongoWebhookRoutes);
 app.use("/api/customer-payment-orders", CustomerPaymentOrderRoutes);
 app.use("/api/inventory", InventoryRoutes);
+app.use("/api/returns", ReturnRoutes);
 
 app.use(
   "/api/uploads",
-  express.static("C:/NAGBA_ANDREI/salon/upload")
+  express.static("C:\\NAGBA_ANDREI\\salon\\upload")
 );
 
 
