@@ -9,6 +9,7 @@ export default function AppointmentRoutes(appointmentRepository, queueRepository
   router.post("/", auth, controller.create.bind(controller)); // Create
   router.put("/:id", auth, controller.update.bind(controller)); // Update / Reschedule
   router.delete("/:id", auth, controller.delete.bind(controller)); // Delete
+  router.get("/:id", auth, controller.getById.bind(controller)); // Get By ID
   router.get("/", auth, controller.get.bind(controller)); // Get / List
 
   return router;
