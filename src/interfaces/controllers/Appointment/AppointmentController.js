@@ -104,4 +104,19 @@ export default class AppointmentController {
       return res.status(400).json({ message: err.message });
     }
   }
+
+  async getById(req, res) {
+    try {
+      const appointments = await this.getUsecase.execute({});
+      const appointment = appointments.find(a => a.appointmentid === parseInt(req.params.id));
+      
+      if (!appointment) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+
+      return res.json(appointment);
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
+  }
 }

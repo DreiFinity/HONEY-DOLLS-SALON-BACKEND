@@ -411,10 +411,43 @@ export default class QueueRepositoryImpl {
   }
 
   async deleteQueue(queueid) {
-    const result = await pool.query(
-      `DELETE FROM queue WHERE queueid = $1 RETURNING *`,
-      [queueid]
-    );
-    return result.rows[0] || null;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // 1. Get the queue item to find appointmentid
+      const res = await client.query(
+        `SELECT appointmentid FROM queue WHERE queueid = $1`,
+        [queueid]
+      );
+      
+      const appointmentid = res.rows[0]?.appointmentid;
+
+      // 2. Delete the queue item
+      const deleteQueueRes = await client.query(
+        `DELETE FROM queue WHERE queueid = $1 RETURNING *`,
+        [queueid]
+      );
+
+      // 3. If it was linked to an appointment, mark it as cancelled
+      if (appointmentid) {
+        await client.query(
+          `UPDATE appointment 
+           SET status = 'cancelled', 
+               cancellationreason = 'Removed from queue by staff',
+               updatedat = CURRENT_TIMESTAMP
+           WHERE appointmentid = $1`,
+          [appointmentid]
+        );
+      }
+
+      await client.query("COMMIT");
+      return deleteQueueRes.rows[0] || null;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 }
