@@ -28,7 +28,7 @@ import ServiceRoutes from "./infrastructure/web/routes/ServiceRoutes.js";
 import ServiceRepositoryImpl from "./infrastructure/repositories/Service/ServiceRepositoryImpl.js";
 import ProductRoutes from "./infrastructure/web/routes/ProductRoutes.js";
 import ProductRepositoryImpl from "./infrastructure/repositories/Product/ProductRepositoryImpl.js";
- 
+
 import PurchaseOrderRepositoryImpl from "./infrastructure/repositories/Purchase/PurchaseRepositoryImpl.js";
 import PurchaseOrderRoutes from "./infrastructure/web/routes/PurchaseOrderRoutes.js";
 import AuthRoutes from "./infrastructure/web/routes/AuthRoutes.js";
@@ -42,6 +42,8 @@ import SupplierPurchaseRoutes from "./infrastructure/web/routes/SupplierPurchase
 import SupplierRoutes from "./infrastructure/web/routes/SupplierRoutes.js";
 import InventoryRoutes from "./infrastructure/web/routes/InventoryRoutes.js";
 import ReturnRoutes from "./infrastructure/web/routes/ReturnRoutes.js";
+import ProductAdjustmentsRoutes from "./infrastructure/web/routes/ProductAdjustmentsRoutes.js";
+import ProductAdjustmentsRepositoryImpl from "./infrastructure/repositories/ProductAdjustments/ProductAdjustmentsRepositoryImpl.js";
 
 const appointmentRepository = new AppointmentRepositoryImpl();
 const userRepository = new UserRepositoryImpl();
@@ -49,6 +51,7 @@ const hashService = new BcryptService();
 const serviceRepository = new ServiceRepositoryImpl();
 const staffRepository = new StaffRepositoryImpl();
 const productRepository = new ProductRepositoryImpl();
+const productAdjustmentsRepository = new ProductAdjustmentsRepositoryImpl();
 const purchaseOrderRepository = new PurchaseOrderRepositoryImpl();
 
 const queueRepository = new QueueRepositoryImpl();
@@ -72,6 +75,7 @@ app.use("/api/branches", BranchRoutes);
 app.use("/api/stafflogin", StaffRouteLogin);
 app.use("/api/services", ServiceRoutes(serviceRepository));
 app.use("/api/products", ProductRoutes(productRepository));
+app.use("/api/product-adjustments", ProductAdjustmentsRoutes(productAdjustmentsRepository));
 
 app.use("/api/purchase", PurchaseOrderRoutes(purchaseOrderRepository));
 app.use("/api/supplier-purchase", SupplierPurchaseRoutes);
@@ -93,7 +97,7 @@ app.use("/api/returns", ReturnRoutes);
 
 app.use(
   "/api/uploads",
-  express.static("C:\\NAGBA_ANDREI\\salon\\upload")
+  express.static("C:\\SALON\\salon_backend\\upload")
 );
 
 

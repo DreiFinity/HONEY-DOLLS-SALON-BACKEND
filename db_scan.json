@@ -1,0 +1,266 @@
+{
+  "columns": [
+    {
+      "table_name": "product_damage",
+      "column_name": "damageid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "product_damage",
+      "column_name": "productid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "product_damage",
+      "column_name": "userid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "product_damage",
+      "column_name": "reason",
+      "data_type": "character varying"
+    },
+    {
+      "table_name": "product_damage",
+      "column_name": "datetime",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "table_name": "product_damage",
+      "column_name": "remarks",
+      "data_type": "character varying"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "returnid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "orderid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "customerid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "productid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "quantity",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "reason",
+      "data_type": "text"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "reason_type",
+      "data_type": "character varying"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "status",
+      "data_type": "character varying"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "customer_evidence_image",
+      "data_type": "character varying"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "createdat",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "refund_proof",
+      "data_type": "character varying"
+    },
+    {
+      "table_name": "product_returns",
+      "column_name": "refund_at",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "table_name": "products",
+      "column_name": "productid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "products",
+      "column_name": "prodname",
+      "data_type": "character varying"
+    },
+    {
+      "table_name": "products",
+      "column_name": "prodcat",
+      "data_type": "character varying"
+    },
+    {
+      "table_name": "products",
+      "column_name": "price",
+      "data_type": "numeric"
+    },
+    {
+      "table_name": "products",
+      "column_name": "prodimage",
+      "data_type": "character varying"
+    },
+    {
+      "table_name": "products",
+      "column_name": "createdat",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "table_name": "products",
+      "column_name": "supplier_price",
+      "data_type": "numeric"
+    },
+    {
+      "table_name": "producttransferred",
+      "column_name": "transfer_id",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "producttransferred",
+      "column_name": "productid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "producttransferred",
+      "column_name": "reference_code",
+      "data_type": "character varying"
+    },
+    {
+      "table_name": "producttransferred",
+      "column_name": "frombranchid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "producttransferred",
+      "column_name": "tobranchid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "producttransferred",
+      "column_name": "status",
+      "data_type": "character varying"
+    },
+    {
+      "table_name": "producttransferred",
+      "column_name": "transfer_date",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "table_name": "producttransferred",
+      "column_name": "approved_by",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "producttransferred",
+      "column_name": "remarks",
+      "data_type": "text"
+    },
+    {
+      "table_name": "producttransferreddetails",
+      "column_name": "transferdetail_id",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "producttransferreddetails",
+      "column_name": "transfer_id",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "producttransferreddetails",
+      "column_name": "productid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "producttransferreddetails",
+      "column_name": "quantity",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "producttransferreddetails",
+      "column_name": "unit_price",
+      "data_type": "numeric"
+    },
+    {
+      "table_name": "producttransferreddetails",
+      "column_name": "remarks",
+      "data_type": "text"
+    },
+    {
+      "table_name": "productwaste",
+      "column_name": "wasteid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "productwaste",
+      "column_name": "userid",
+      "data_type": "integer"
+    },
+    {
+      "table_name": "productwaste",
+      "column_name": "reason",
+      "data_type": "text"
+    },
+    {
+      "table_name": "productwaste",
+      "column_name": "createdat",
+      "data_type": "timestamp without time zone"
+    },
+    {
+      "table_name": "productwaste",
+      "column_name": "remarks",
+      "data_type": "character varying"
+    }
+  ],
+  "foreign_keys": [
+    {
+      "table_name": "product_damage",
+      "column_name": "productid",
+      "foreign_table_name": "products",
+      "foreign_column_name": "productid"
+    },
+    {
+      "table_name": "productwaste",
+      "column_name": "userid",
+      "foreign_table_name": "users",
+      "foreign_column_name": "userid"
+    },
+    {
+      "table_name": "productwaste",
+      "column_name": "userid",
+      "foreign_table_name": "users",
+      "foreign_column_name": "userid"
+    },
+    {
+      "table_name": "productwaste",
+      "column_name": "userid",
+      "foreign_table_name": "users",
+      "foreign_column_name": "userid"
+    },
+    {
+      "table_name": "productwaste",
+      "column_name": "userid",
+      "foreign_table_name": "users",
+      "foreign_column_name": "userid"
+    }
+  ]
+}
