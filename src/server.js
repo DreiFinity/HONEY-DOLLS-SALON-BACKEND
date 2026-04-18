@@ -28,7 +28,7 @@ import ServiceRoutes from "./infrastructure/web/routes/ServiceRoutes.js";
 import ServiceRepositoryImpl from "./infrastructure/repositories/Service/ServiceRepositoryImpl.js";
 import ProductRoutes from "./infrastructure/web/routes/ProductRoutes.js";
 import ProductRepositoryImpl from "./infrastructure/repositories/Product/ProductRepositoryImpl.js";
-
+ 
 import PurchaseOrderRepositoryImpl from "./infrastructure/repositories/Purchase/PurchaseRepositoryImpl.js";
 import PurchaseOrderRoutes from "./infrastructure/web/routes/PurchaseOrderRoutes.js";
 import AuthRoutes from "./infrastructure/web/routes/AuthRoutes.js";

@@ -43,10 +43,13 @@ export default class CustomerPaymentOrderRepositoryImpl {
         od.serviceid,
         p.prodname,
         p.prodcat,
-        p.prodimage
+        p.prodimage,
+        c.profileimage,
+        u.email
 
       FROM customerpayment cp
       LEFT JOIN customers c ON c.customerid = cp.customerid
+      LEFT JOIN users u ON u.userid = c.userid
       LEFT JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
       LEFT JOIN orders o ON o.orderid = cpo.orderid
       LEFT JOIN orderdetails od ON od.orderid = o.orderid
@@ -104,9 +107,12 @@ export default class CustomerPaymentOrderRepositoryImpl {
         p.prodcat,
         p.prodimage,
         s.servicename,
-        s.price AS service_price
+        s.price AS service_price,
+        c.profileimage,
+        u.email
       FROM customerpayment cp
       LEFT JOIN customers c ON c.customerid = cp.customerid
+      LEFT JOIN users u ON u.userid = c.userid
       LEFT JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
       LEFT JOIN orders o ON o.orderid = cpo.orderid
       LEFT JOIN orderdetails od ON od.orderid = o.orderid
@@ -167,9 +173,12 @@ export default class CustomerPaymentOrderRepositoryImpl {
         p.prodcat,
         p.prodimage,
         s.servicename,
-        s.price AS service_price
+        s.price AS service_price,
+        c.profileimage,
+        u.email
       FROM customerpayment cp
       LEFT JOIN customers c ON c.customerid = cp.customerid
+      LEFT JOIN users u ON u.userid = c.userid
       LEFT JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
       LEFT JOIN orders o ON o.orderid = cpo.orderid
       LEFT JOIN orderdetails od ON od.orderid = o.orderid
@@ -229,9 +238,12 @@ export default class CustomerPaymentOrderRepositoryImpl {
         p.prodcat,
         p.prodimage,
         s.servicename,
-        s.price AS service_price
+        s.price AS service_price,
+        c.profileimage,
+        u.email
       FROM customerpayment cp
       LEFT JOIN customers c ON c.customerid = cp.customerid
+      LEFT JOIN users u ON u.userid = c.userid
       LEFT JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
       LEFT JOIN orders o ON o.orderid = cpo.orderid
       LEFT JOIN orderdetails od ON od.orderid = o.orderid
@@ -295,10 +307,7 @@ export default class CustomerPaymentOrderRepositoryImpl {
     }
   }
 
-  /**
-   * Mark all orders linked to a customerpayment as delivered.
-   * Sets delivered_at = NOW(), status = 'delivered'.
-   */
+
   async markOrdersDelivered(customerpaymentid) {
     const client = await pool.connect();
     try {
@@ -376,6 +385,8 @@ export default class CustomerPaymentOrderRepositoryImpl {
             firstname: row.customer_firstname,
             lastname: row.customer_lastname,
             contact: row.customer_contact,
+            profileimage: row.profileimage,
+            email: row.email,
           },
           orders: [],
           _ordersMap: new Map(),
