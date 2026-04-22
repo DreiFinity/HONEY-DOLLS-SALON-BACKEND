@@ -4,6 +4,8 @@ import CreateProductPayment from "../../../application/usecases/Payment/CreatePr
 import CustomerPaymentRepositoryImpl from "../../repositories/Payment/CustomerProductPaymentRepositoryImpl.js";
 import ProductPaymentController from "../../../interfaces/controllers/Payment/ProductPaymentController.js";
 import CancelOrder from "../../../application/usecases/Order/CancelOrder.js";
+import SyncTrackingStatus from "../../../application/usecases/Payment/SyncTrackingStatus.js";
+import CustomerPaymentOrderRepositoryImpl from "../../repositories/Payment/CustomerPaymentOrderRepositoryImpl.js";
 import auth from "../middleware/auth.js";
 
 const router = express.Router();
@@ -37,6 +39,18 @@ router.get("/latest-receipt", auth, async (req, res) => {
 });
 
 router.get("/my-orders", auth, controller.getMyOrders.bind(controller));
+
+router.get("/sync-my-trackings", auth, async (req, res) => {
+  try {
+    const customerid = req.user.customerid;
+    const paymentRepo = new CustomerPaymentOrderRepositoryImpl();
+    const syncTrackingUseCase = new SyncTrackingStatus(paymentRepo, repository);
+    await syncTrackingUseCase.execute(customerid);
+    res.json({ success: true, message: "Tracking synchronization completed." });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 router.put("/cancel/:reference_code", auth, controller.cancel.bind(controller));
 

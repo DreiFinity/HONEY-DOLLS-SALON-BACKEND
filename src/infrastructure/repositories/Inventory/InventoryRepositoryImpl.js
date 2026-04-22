@@ -20,7 +20,7 @@ export default class InventoryRepositoryImpl {
         JOIN customerpayment_orders cpo ON cp.customerpaymentid = cpo.customerpaymentid
         JOIN orders o ON o.orderid = cpo.orderid
         JOIN orderdetails od ON od.orderid = o.orderid
-        WHERE cp.fulfillment_branchid = $1 AND o.status IN ('shipping', 'delivered')
+        WHERE cp.fulfillment_branchid = $1 AND o.status IN ('shipping', 'delivered', 'completed')
         GROUP BY od.productid
       ),
       Returns AS (
@@ -32,22 +32,45 @@ export default class InventoryRepositoryImpl {
         JOIN customerpayment cp ON cp.customerpaymentid = cpo.customerpaymentid
         WHERE cp.fulfillment_branchid = $1 AND r.status = 'completed'
         GROUP BY r.productid
+      ),
+      TransfersIn AS (
+        SELECT 
+          productid,
+          SUM(quantity) as total_transfer_in
+        FROM product_transfers
+        WHERE to_branchid = $1::INTEGER
+        GROUP BY productid
+      ),
+      TransfersOut AS (
+        SELECT 
+          productid,
+          SUM(quantity) as total_transfer_out
+        FROM product_transfers
+        WHERE from_branchid = $1::INTEGER
+        GROUP BY productid
       )
       SELECT 
         p.productid,
         p.prodname as name,
         p.price,
         p.prodcat as category,
-        (COALESCE(a.total_in, 0) - COALESCE(f.total_out, 0) + COALESCE(r.total_returned, 0)) as stock,
+        (COALESCE(a.total_in, 0) - COALESCE(f.total_out, 0) + COALESCE(r.total_returned, 0) + COALESCE(ti.total_transfer_in, 0) - COALESCE(tout.total_transfer_out, 0)) as stock,
         CURRENT_TIMESTAMP as updated
       FROM products p
       LEFT JOIN Arrivals a ON p.productid = a.productid
       LEFT JOIN Fulfillments f ON p.productid = f.productid
       LEFT JOIN Returns r ON p.productid = r.productid
+      LEFT JOIN TransfersIn ti ON p.productid = ti.productid
+      LEFT JOIN TransfersOut tout ON p.productid = tout.productid
       ORDER BY p.prodname ASC;
     `;
-    const { rows } = await pool.query(query, [branchid]);
-    return rows;
+    try {
+      const { rows } = await pool.query(query, [parseInt(branchid)]);
+      return rows;
+    } catch (err) {
+      console.error("Inventory Query Error for branch:", branchid, err.message);
+      throw err;
+    }
   }
 
   async getTotalInventory() {
@@ -65,19 +88,20 @@ export default class InventoryRepositoryImpl {
         SELECT 
           od.productid,
           SUM(od.quantity) as total_out
-        FROM customerpayment_orders cpo
+        FROM customerpayment cp
+        JOIN customerpayment_orders cpo ON cp.customerpaymentid = cpo.customerpaymentid
         JOIN orders o ON o.orderid = cpo.orderid
         JOIN orderdetails od ON od.orderid = o.orderid
-        WHERE o.status IN ('shipping', 'delivered')
+        WHERE o.status IN ('shipping', 'delivered', 'completed')
         GROUP BY od.productid
       ),
       Returns AS (
         SELECT 
-          productid,
-          SUM(quantity) as total_returned
-        FROM product_returns
-        WHERE status = 'completed'
-        GROUP BY productid
+          r.productid,
+          SUM(r.quantity) as total_returned
+        FROM product_returns r
+        WHERE r.status = 'completed'
+        GROUP BY r.productid
       )
       SELECT 
         p.productid,
@@ -85,8 +109,7 @@ export default class InventoryRepositoryImpl {
         p.price,
         p.prodcat as category,
         (COALESCE(a.total_in, 0) - COALESCE(f.total_out, 0) + COALESCE(r.total_returned, 0)) as stock,
-        CURRENT_TIMESTAMP as updated,
-        'All Branches' as branchname
+        CURRENT_TIMESTAMP as updated
       FROM products p
       LEFT JOIN Arrivals a ON p.productid = a.productid
       LEFT JOIN Fulfillments f ON p.productid = f.productid

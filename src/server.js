@@ -44,7 +44,11 @@ import InventoryRoutes from "./infrastructure/web/routes/InventoryRoutes.js";
 import ReturnRoutes from "./infrastructure/web/routes/ReturnRoutes.js";
 import ReservationPaymentRoutes from "./infrastructure/web/routes/ReservationPaymentRoutes.js";
 import ProductAdjustmentsRoutes from "./infrastructure/web/routes/ProductAdjustmentsRoutes.js";
+import ProductTransferRoutes from "./infrastructure/web/routes/ProductTransferRoutes.js";
 import ProductAdjustmentsRepositoryImpl from "./infrastructure/repositories/ProductAdjustments/ProductAdjustmentsRepositoryImpl.js";
+import CustomerPaymentOrderRepositoryImpl from "./infrastructure/repositories/Payment/CustomerPaymentOrderRepositoryImpl.js";
+import CustomerProductPaymentRepositoryImpl from "./infrastructure/repositories/Payment/CustomerProductPaymentRepositoryImpl.js";
+import SyncTrackingStatus from "./application/usecases/Payment/SyncTrackingStatus.js";
 
 const appointmentRepository = new AppointmentRepositoryImpl();
 const userRepository = new UserRepositoryImpl();
@@ -77,6 +81,7 @@ app.use("/api/stafflogin", StaffRouteLogin);
 app.use("/api/services", ServiceRoutes(serviceRepository));
 app.use("/api/products", ProductRoutes(productRepository));
 app.use("/api/product-adjustments", ProductAdjustmentsRoutes(productAdjustmentsRepository));
+app.use("/api/product-transfers", ProductTransferRoutes);
 
 app.use("/api/purchase", PurchaseOrderRoutes(purchaseOrderRepository));
 app.use("/api/supplier-purchase", SupplierPurchaseRoutes);
@@ -99,7 +104,7 @@ app.use("/api/reservation-payment", ReservationPaymentRoutes);
 
 app.use(
   "/api/uploads",
-  express.static("C:\\SALON\\salon_backend\\upload")
+  express.static("C:\\NAGBA_ANDREI\\salon\\upload")
 );
 
 
@@ -114,4 +119,21 @@ app.get("/", async (req, res) => {
 });
 
 const PORT = config.port || 4000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+
+  // Initialize and start background tracking sync
+  const paymentRepo = new CustomerPaymentOrderRepositoryImpl();
+  const productPaymentRepo = new CustomerProductPaymentRepositoryImpl();
+  const syncTrackingUseCase = new SyncTrackingStatus(paymentRepo, productPaymentRepo);
+
+  // Initial sync after 10 seconds to avoid overloading startup
+  setTimeout(() => {
+    syncTrackingUseCase.execute().catch(err => console.error("Initial Tracking Sync Error:", err));
+  }, 10000);
+
+  // Sync every hour
+  setInterval(() => {
+    syncTrackingUseCase.execute().catch(err => console.error("Background Tracking Sync Error:", err));
+  }, 60 * 60 * 1000);
+});

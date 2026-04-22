@@ -3,7 +3,7 @@ import { pool } from "../../db/index.js";
 export default class AdminRepositoryImpl {
   async findByUserId(userId) {
     const query = `
-      SELECT a.firstname, a.lastname, a.contact, a.image, u.email
+      SELECT a.adminid, a.firstname, a.lastname, a.contact, a.image, u.email
       FROM admin a
       JOIN users u ON a.userid = u.userid
       WHERE a.userid = $1

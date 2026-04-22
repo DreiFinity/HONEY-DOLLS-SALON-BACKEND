@@ -357,7 +357,7 @@ export default class CustomerProductPaymentRepositoryImpl {
     JOIN orders o ON o.orderid = cpo.orderid
     WHERE cp.customerid = $1
     GROUP BY cp.customerpaymentid
-    ORDER BY cp.updated_at ASC
+    ORDER BY cp.updated_at DESC
   `,
       [customerid],
     );
@@ -459,7 +459,9 @@ export default class CustomerProductPaymentRepositoryImpl {
       // 1. Update customerpayment delivered_at if not already set
       const cpUpdate = await client.query(
         `UPDATE customerpayment 
-         SET delivered_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         SET delivered_at = CURRENT_TIMESTAMP, 
+             updated_at = CURRENT_TIMESTAMP,
+             status = CASE WHEN method = 'cod' THEN 'paid' ELSE status END
          WHERE tracking_number = $1 AND delivered_at IS NULL
          RETURNING customerpaymentid`,
         [tracking_number]

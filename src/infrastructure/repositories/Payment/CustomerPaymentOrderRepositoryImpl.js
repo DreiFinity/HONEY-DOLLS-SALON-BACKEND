@@ -317,7 +317,8 @@ export default class CustomerPaymentOrderRepositoryImpl {
       await client.query(
         `UPDATE customerpayment
          SET delivered_at = CURRENT_TIMESTAMP,
-             updated_at = CURRENT_TIMESTAMP
+             updated_at = CURRENT_TIMESTAMP,
+             status = CASE WHEN method = 'cod' THEN 'paid' ELSE status END
          WHERE customerpaymentid = $1`,
         [customerpaymentid],
       );
@@ -472,5 +473,20 @@ export default class CustomerPaymentOrderRepositoryImpl {
     }
 
     return result.rows[0];
+  }
+
+  async getActiveTrackings(customerId = null) {
+    let query = `SELECT tracking_number, courier_name, customerpaymentid 
+                 FROM customerpayment 
+                 WHERE tracking_number IS NOT NULL AND delivered_at IS NULL`;
+    const params = [];
+
+    if (customerId) {
+      query += ` AND customerid = $1`;
+      params.push(customerId);
+    }
+
+    const result = await pool.query(query, params);
+    return result.rows;
   }
 }
