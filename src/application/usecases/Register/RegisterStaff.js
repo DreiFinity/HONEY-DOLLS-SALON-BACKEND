@@ -14,7 +14,20 @@ export default class RegisterStaff {
     contact,
     branchid,
     image, 
+    role,
   }) {
+    // 1. Check for existing email
+    const existingEmail = await this.userRepository.findByEmail(email);
+    if (existingEmail) {
+      throw new Error("This email is already registered to another account.");
+    }
+
+    // 2. Check for existing username (optional but recommended)
+    const existingUsername = await this.userRepository.findByUsername(username);
+    if (existingUsername) {
+      throw new Error("This username is already taken.");
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await this.userRepository.createUser({
@@ -30,7 +43,8 @@ export default class RegisterStaff {
       contact,
       branchid,
       userid: user.userid,
-      image, // <-- pass image to repository
+      image,
+      role,
     });
 
     return { user, staff };

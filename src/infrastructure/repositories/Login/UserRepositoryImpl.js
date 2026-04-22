@@ -54,12 +54,12 @@ export class UserRepositoryImpl extends UserRepository {
     };
   }
 
-  async createStaff({ firstname, lastname, contact, branchid, userid, image }) {
+  async createStaff({ firstname, lastname, contact, branchid, userid, image, role }) {
     const { rows } = await pool.query(
-      `INSERT INTO staff (firstname, lastname, contact, branchid, userid, image)
-     VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO staff (firstname, lastname, contact, branchid, userid, image, role)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *;`,
-      [firstname, lastname, contact, branchid, userid, image],
+      [firstname, lastname, contact, branchid, userid, image, role],
     );
     return rows[0];
   }
@@ -79,6 +79,20 @@ export class UserRepositoryImpl extends UserRepository {
       email,
     ]);
     return rows[0];
+  }
+
+  async findByUsername(username) {
+    const { rows } = await pool.query(`SELECT * FROM users WHERE username = $1`, [
+      username,
+    ]);
+    return rows[0];
+  }
+
+  async getUserIdByStaffId(staffid) {
+    const { rows } = await pool.query(`SELECT userid FROM staff WHERE staffid = $1`, [
+      staffid,
+    ]);
+    return rows[0]?.userid || null;
   }
   async findByRole(role) {
     const { rows } = await pool.query(`SELECT * FROM users WHERE role = $1`, [
@@ -108,6 +122,7 @@ export class UserRepositoryImpl extends UserRepository {
       username,
       password,
       image,
+      role,
     },
   ) {
     // Update user table first if username/email/password is provided
@@ -160,6 +175,10 @@ export class UserRepositoryImpl extends UserRepository {
     if (image) {
       staffFields.push(`image=$${idx++}`);
       staffValues.push(image);
+    }
+    if (role) {
+      staffFields.push(`role=$${idx++}`);
+      staffValues.push(role);
     }
 
     if (staffFields.length) {
