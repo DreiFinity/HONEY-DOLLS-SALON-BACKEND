@@ -5,7 +5,18 @@ export default class QueueController {
 
   async getAll(req, res) {
     try {
-      const queue = await this.queueRepository.getTodayQueue();
+      const branchid = req.user.role === "staff" ? req.user.branchid : (req.query.branchid || null);
+      const queue = await this.queueRepository.getTodayQueue(branchid);
+      return res.json({ queue });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  }
+
+  async getUpcoming(req, res) {
+    try {
+      const branchid = req.user.role === "staff" ? req.user.branchid : (req.query.branchid || null);
+      const queue = await this.queueRepository.getUpcomingQueue(branchid);
       return res.json({ queue });
     } catch (err) {
       return res.status(500).json({ message: err.message });
@@ -14,7 +25,7 @@ export default class QueueController {
 
   async create(req, res) {
     try {
-      const { customername, staffid, notes, services } = req.body;
+      const { customername, staffid, notes, services, branchid } = req.body;
 
       if (!customername || !Array.isArray(services) || services.length === 0) {
         return res.status(400).json({
@@ -27,6 +38,7 @@ export default class QueueController {
         staffid,
         notes,
         services,
+        branchid,
       });
 
       return res.status(201).json({
@@ -79,14 +91,14 @@ export default class QueueController {
     }
   }
 
-async getAdminQueue(req, res) {
-  try {
-    const queue = await this.queueRepository.getTodayQueueAdmin();
-    return res.json({ queue });
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
+  async getAdminQueue(req, res) {
+    try {
+      const queue = await this.queueRepository.getTodayQueueAdmin();
+      return res.json({ queue });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
   }
-}
 
   async delete(req, res) {
     try {
@@ -104,7 +116,5 @@ async getAdminQueue(req, res) {
     } catch (err) {
       return res.status(500).json({ message: err.message });
     }
-
-    
   }
 }

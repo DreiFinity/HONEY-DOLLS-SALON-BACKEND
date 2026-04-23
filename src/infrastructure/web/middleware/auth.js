@@ -36,6 +36,8 @@ export default async function auth(req, res, next) {
       id: decoded.id,
       role: decoded.role,
       customerid: customer ? customer.customerid : null,
+      specializations: decoded.specializations || null,
+      branchid: decoded.branchid || null,
     };
     // 🔹 DEBUG: check logged-in user info
     // console.log("REQ.USER after auth:", req.user);

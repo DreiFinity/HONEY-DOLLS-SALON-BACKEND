@@ -8,15 +8,15 @@ export default class UpdateAppointment {
       throw new Error("No data provided to update appointment");
     }
 
+    console.log("UpdateAppointment data received:", data);
     const allowedFields = [
       "starttime",
       "endtime",
       "staffid",
       "notes",
-      "recurring",
-      "recurrencerule",
       "status",
       "cancellationreason",
+      "branchid",
     ];
 
     const fieldsToUpdate = {};

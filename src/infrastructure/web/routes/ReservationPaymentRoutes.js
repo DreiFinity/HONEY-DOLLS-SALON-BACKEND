@@ -81,6 +81,25 @@ router.post("/create-balance", auth, async (req, res) => {
   }
 });
 
+// ── Mark reservation payment as paid manually (staff/admin) ────────
+router.post("/mark-paid", auth, async (req, res) => {
+  try {
+    const { appointmentid, type } = req.body; // type can be 'reservation' or 'balance'
+    if (!appointmentid) throw new Error("appointmentid is required");
+
+    let payment;
+    if (type === "balance") {
+      payment = await repository.markBalancePaidManually(appointmentid);
+    } else {
+      payment = await repository.markReservationPaidManually(appointmentid);
+    }
+
+    res.json({ success: true, data: payment });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // ── Get all reservation payments (admin) ─────────────────────────
 router.get("/all", auth, async (req, res) => {
   try {

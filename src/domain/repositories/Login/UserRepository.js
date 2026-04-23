@@ -28,4 +28,7 @@ export class UserRepository {
   async deleteStaff(id) {
     throw new Error("Not implemented");
   }
+  async findStaffByUserId(userid) {
+    throw new Error("Not implemented");
+  }
 }

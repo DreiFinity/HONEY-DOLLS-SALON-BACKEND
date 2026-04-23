@@ -10,7 +10,7 @@ export default class ReservationPaymentRepositoryImpl {
         (appointmentid, customerid, reference_code, method, status, currency,
          reservation_fee, checkout_url, paymongo_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       RETURNING *`,
+       RETURNING appointmentid`,
       [
         data.appointmentid,
         data.customerid,
@@ -23,7 +23,7 @@ export default class ReservationPaymentRepositoryImpl {
         data.paymongo_id || null,
       ]
     );
-    return result.rows[0];
+    return this.getByAppointmentId(result.rows[0].appointmentid);
   }
 
   /**
@@ -36,7 +36,17 @@ export default class ReservationPaymentRepositoryImpl {
 
       // 1. Find the reservation payment
       const paymentRes = await client.query(
-        `SELECT * FROM reservationpayment WHERE paymongo_id = $1`,
+        `SELECT rp.*,
+                COALESCE(totals.total_service_cost, 0) AS total_amount,
+                (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount
+         FROM reservationpayment rp
+         LEFT JOIN (
+             SELECT aps.appointmentid, SUM(sv.amount) AS total_service_cost
+             FROM appointmentservice aps
+             JOIN service sv ON sv.serviceid = aps.serviceid
+             GROUP BY aps.appointmentid
+         ) totals ON totals.appointmentid = rp.appointmentid
+         WHERE rp.paymongo_id = $1`,
         [sessionId]
       );
 
@@ -64,7 +74,7 @@ export default class ReservationPaymentRepositoryImpl {
       );
 
       await client.query("COMMIT");
-      return payment;
+      return this.getByAppointmentId(payment.appointmentid);
     } catch (err) {
       await client.query("ROLLBACK");
       console.error("ReservationPayment markPaidBySessionId error:", err);
@@ -79,7 +89,17 @@ export default class ReservationPaymentRepositoryImpl {
    */
   async getByAppointmentId(appointmentid) {
     const result = await pool.query(
-      `SELECT * FROM reservationpayment WHERE appointmentid = $1`,
+      `SELECT rp.*,
+              COALESCE(totals.total_service_cost, 0) AS total_amount,
+              (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount
+       FROM reservationpayment rp
+       LEFT JOIN (
+           SELECT aps.appointmentid, SUM(sv.amount) AS total_service_cost
+           FROM appointmentservice aps
+           JOIN service sv ON sv.serviceid = aps.serviceid
+           GROUP BY aps.appointmentid
+       ) totals ON totals.appointmentid = rp.appointmentid
+       WHERE rp.appointmentid = $1`,
       [appointmentid]
     );
     return result.rows[0] || null;
@@ -92,10 +112,18 @@ export default class ReservationPaymentRepositoryImpl {
     const result = await pool.query(
       `SELECT rp.*, 
               a.starttime, a.endtime, a.status AS appointment_status, a.customerid,
-              s.firstname AS staff_firstname, s.lastname AS staff_lastname
+              s.firstname AS staff_firstname, s.lastname AS staff_lastname,
+              COALESCE(totals.total_service_cost, 0) AS total_amount,
+              (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount
        FROM reservationpayment rp
        JOIN appointment a ON a.appointmentid = rp.appointmentid
        LEFT JOIN staff s ON s.staffid = a.staffid
+       LEFT JOIN (
+           SELECT aps.appointmentid, SUM(sv.amount) AS total_service_cost
+           FROM appointmentservice aps
+           JOIN service sv ON sv.serviceid = aps.serviceid
+           GROUP BY aps.appointmentid
+       ) totals ON totals.appointmentid = rp.appointmentid
        WHERE a.customerid = $1
        ORDER BY rp.created_at DESC`,
       [customerid]
@@ -112,13 +140,36 @@ export default class ReservationPaymentRepositoryImpl {
               a.starttime, a.endtime, a.status AS appointment_status, a.customerid,
               c.firstname AS customer_firstname, c.lastname AS customer_lastname,
               u.email AS customer_email,
-              s.firstname AS staff_firstname, s.lastname AS staff_lastname
+              s.firstname AS staff_firstname, s.lastname AS staff_lastname,
+              COALESCE(totals.total_service_cost, 0) AS total_amount,
+              (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount,
+              totals.service_names
        FROM reservationpayment rp
        JOIN appointment a ON a.appointmentid = rp.appointmentid
        JOIN customers c ON c.customerid = a.customerid
        LEFT JOIN users u ON u.userid = c.userid
        LEFT JOIN staff s ON s.staffid = a.staffid
+       LEFT JOIN (
+           SELECT aps.appointmentid, 
+                  SUM(sv.amount) AS total_service_cost,
+                  STRING_AGG(sv.servicename, ', ') AS service_names
+           FROM appointmentservice aps
+           JOIN service sv ON sv.serviceid = aps.serviceid
+           GROUP BY aps.appointmentid
+       ) totals ON totals.appointmentid = rp.appointmentid
        ORDER BY rp.created_at DESC`
+    );
+    return result.rows;
+  }
+
+  /**
+   * Get multiple services by their IDs
+   */
+  async getServicesByIds(serviceIds) {
+    if (!serviceIds || serviceIds.length === 0) return [];
+    const result = await pool.query(
+      `SELECT * FROM service WHERE serviceid = ANY($1::int[])`,
+      [serviceIds]
     );
     return result.rows;
   }
@@ -142,7 +193,7 @@ export default class ReservationPaymentRepositoryImpl {
    */
   async getAppointmentServices(appointmentid) {
     const result = await pool.query(
-      `SELECT aps.serviceid, aps.quantity, aps.price,
+      `SELECT aps.serviceid, sv.amount AS price,
               sv.servicename, sv.servicetype
        FROM appointmentservice aps
        JOIN service sv ON sv.serviceid = aps.serviceid
@@ -169,23 +220,20 @@ export default class ReservationPaymentRepositoryImpl {
   async updateBalanceInfo(reservationpaymentid, data) {
     const result = await pool.query(
       `UPDATE reservationpayment
-       SET balance_amount = $1,
-           balance_paymongo_id = $2,
-           balance_checkout_url = $3,
+       SET balance_paymongo_id = $1,
+           balance_checkout_url = $2,
            balance_status = 'pending',
-           total_amount = $4,
            updated_at = CURRENT_TIMESTAMP
-       WHERE reservationpaymentid = $5
-       RETURNING *`,
+       WHERE reservationpaymentid = $3
+       RETURNING appointmentid`,
       [
-        data.balance_amount,
         data.balance_paymongo_id,
         data.balance_checkout_url,
-        data.total_amount,
         reservationpaymentid,
       ]
     );
-    return result.rows[0];
+    if (result.rows.length === 0) return null;
+    return this.getByAppointmentId(result.rows[0].appointmentid);
   }
 
   /**
@@ -198,7 +246,17 @@ export default class ReservationPaymentRepositoryImpl {
 
       // 1. Find the record
       const paymentRes = await client.query(
-        `SELECT * FROM reservationpayment WHERE balance_paymongo_id = $1`,
+        `SELECT rp.*,
+                COALESCE(totals.total_service_cost, 0) AS total_amount,
+                (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount
+         FROM reservationpayment rp
+         LEFT JOIN (
+             SELECT aps.appointmentid, SUM(sv.amount) AS total_service_cost
+             FROM appointmentservice aps
+             JOIN service sv ON sv.serviceid = aps.serviceid
+             GROUP BY aps.appointmentid
+         ) totals ON totals.appointmentid = rp.appointmentid
+         WHERE rp.balance_paymongo_id = $1`,
         [balanceSessionId]
       );
 
@@ -236,11 +294,87 @@ export default class ReservationPaymentRepositoryImpl {
       );
 
       await client.query("COMMIT");
-      return payment;
+      return this.getByAppointmentId(payment.appointmentid);
     } catch (err) {
       await client.query("ROLLBACK");
       console.error("markBalancePaid error:", err);
       return null;
+    } finally {
+      client.release();
+    }
+  }
+  /**
+   * Mark reservation as paid manually (staff/admin)
+   */
+  async markReservationPaidManually(appointmentid) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const payment = await this.getByAppointmentId(appointmentid);
+      if (!payment) throw new Error("Payment record not found");
+
+      await client.query(
+        `UPDATE reservationpayment 
+         SET status = 'paid', paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE reservationpaymentid = $1`,
+        [payment.reservationpaymentid]
+      );
+
+      await client.query(
+        `UPDATE appointment
+         SET status = 'paid', updatedat = CURRENT_TIMESTAMP
+         WHERE appointmentid = $1`,
+        [appointmentid]
+      );
+
+      await client.query("COMMIT");
+      return this.getByAppointmentId(appointmentid);
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Mark balance as paid manually (staff/admin)
+   */
+  async markBalancePaidManually(appointmentid) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const payment = await this.getByAppointmentId(appointmentid);
+      if (!payment) throw new Error("Payment record not found");
+
+      await client.query(
+        `UPDATE reservationpayment 
+         SET balance_status = 'paid', 
+             balance_paid_at = CURRENT_TIMESTAMP, 
+             updated_at = CURRENT_TIMESTAMP
+         WHERE reservationpaymentid = $1`,
+        [payment.reservationpaymentid]
+      );
+
+      await client.query(
+        `UPDATE appointment
+         SET status = 'completed', updatedat = CURRENT_TIMESTAMP
+         WHERE appointmentid = $1`,
+        [appointmentid]
+      );
+
+      await client.query(
+        `UPDATE queue
+         SET status = 'done', updatedat = CURRENT_TIMESTAMP
+         WHERE appointmentid = $1`,
+        [appointmentid]
+      );
+
+      await client.query("COMMIT");
+      return this.getByAppointmentId(appointmentid);
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
     } finally {
       client.release();
     }

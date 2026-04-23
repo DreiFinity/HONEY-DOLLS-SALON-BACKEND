@@ -16,6 +16,7 @@ import { pool } from "./infrastructure/db/index.js";
 import onlineOrderRoutes from "./infrastructure/web/routes/onlineOrderRoutes.js";
 
 import QueueRoutes from "./infrastructure/web/routes/QueueRoutes.js";
+import ReservationPaymentRepositoryImpl from "./infrastructure/repositories/Payment/ReservationPaymentRepositoryImpl.js";
 import QueueRepositoryImpl from "./infrastructure/repositories/Queue/QueueRepositoryImpl.js";
 import { UserRepositoryImpl } from "./infrastructure/repositories/Login/UserRepositoryImpl.js";
 import { BcryptService } from "./infrastructure/security/BcryptService.js";
@@ -60,6 +61,7 @@ const productAdjustmentsRepository = new ProductAdjustmentsRepositoryImpl();
 const purchaseOrderRepository = new PurchaseOrderRepositoryImpl();
 
 const queueRepository = new QueueRepositoryImpl();
+const reservationPaymentRepository = new ReservationPaymentRepositoryImpl();
 
 dotenv.config();
 
@@ -73,7 +75,7 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use("/api/queue", QueueRoutes(queueRepository));
 app.use("/api/auth", AuthRoutes);
 
-app.use("/api/appointment", AppointmentRoutes(appointmentRepository, queueRepository));
+app.use("/api/appointment", AppointmentRoutes(appointmentRepository, queueRepository, reservationPaymentRepository));
 app.use("/api/staff", StaffRoute(staffRepository));
 app.use("/api/branches", BranchRoutes);
 

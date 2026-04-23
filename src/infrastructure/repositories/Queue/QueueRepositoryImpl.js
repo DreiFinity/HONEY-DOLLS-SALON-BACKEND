@@ -13,6 +13,7 @@ export default class QueueRepositoryImpl {
           a.customerid,
           a.staffid,
           a.starttime,
+          a.branchid,
           c.firstname,
           c.lastname
         FROM appointment a
@@ -41,10 +42,11 @@ export default class QueueRepositoryImpl {
               source,
               status,
               arrivaltime,
-              isarrived
+              isarrived,
+              branchid
             )
           VALUES
-            (CURRENT_DATE, $1, $2, $3, $4, 'appointment', 'waiting', $5, false)
+            (CURRENT_DATE, $1, $2, $3, $4, 'appointment', 'waiting', $5, false, $6)
           RETURNING queueid
         `;
 
@@ -55,12 +57,13 @@ export default class QueueRepositoryImpl {
           apt.staffid,
           customerName,
           apt.starttime,
+          apt.branchid,
         ]);
 
         const queueId = queueInsertRes.rows[0].queueid;
 
         const appointmentServicesQuery = `
-          SELECT aps.serviceid, aps.quantity, aps.price
+          SELECT aps.serviceid
           FROM appointmentservice aps
           INNER JOIN service sv ON aps.serviceid = sv.serviceid
           WHERE aps.appointmentid = $1
@@ -75,11 +78,11 @@ export default class QueueRepositoryImpl {
           await client.query(
             `
               INSERT INTO queueservice
-                (queueid, serviceid, quantity, price)
+                (queueid, serviceid)
               VALUES
-                ($1, $2, $3, $4)
+                ($1, $2)
             `,
-            [queueId, svc.serviceid, svc.quantity || 1, svc.price || null]
+            [queueId, svc.serviceid]
           );
         }
       }
@@ -95,6 +98,7 @@ export default class QueueRepositoryImpl {
 
   async syncAppointmentToQueue(appointmentId) {
     const client = await pool.connect();
+    console.log(`DEBUG: syncAppointmentToQueue called for ID: ${appointmentId}`);
 
     try {
       await client.query("BEGIN");
@@ -106,6 +110,7 @@ export default class QueueRepositoryImpl {
           a.customerid,
           a.staffid,
           a.starttime,
+          a.branchid,
           c.firstname,
           c.lastname
         FROM appointment a
@@ -123,17 +128,19 @@ export default class QueueRepositoryImpl {
       const { rows } = await client.query(aptQuery, [appointmentId]);
 
       if (rows.length === 0) {
+        console.log(`DEBUG: syncAppointmentToQueue - Appointment ${appointmentId} not found, already synced, or not confirmed.`);
         await client.query("COMMIT");
-        return; // Already in queue or not confirmed
+        return;
       }
 
       const apt = rows[0];
+      console.log(`DEBUG: syncAppointmentToQueue - Syncing apt ${appointmentId} for branch ${apt.branchid}`);
 
       const queueInsertQuery = `
         INSERT INTO queue
-          (queuedate, customerid, appointmentid, staffid, customername, source, status, arrivaltime, isarrived)
+          (queuedate, customerid, appointmentid, staffid, customername, source, status, arrivaltime, isarrived, branchid)
         VALUES
-          (DATE($1), $2, $3, $4, $5, 'appointment', 'waiting', $1, false)
+          (DATE($1), $2, $3, $4, $5, 'appointment', 'waiting', $1, false, $6)
         RETURNING queueid
       `;
 
@@ -144,13 +151,15 @@ export default class QueueRepositoryImpl {
         apt.appointmentid,
         apt.staffid,
         customerName,
+        apt.branchid,
       ]);
 
       const queueId = queueInsertRes.rows[0].queueid;
+      console.log(`DEBUG: syncAppointmentToQueue - Created queue item ${queueId}`);
 
       // Copy appointment services to queue services
       const appointmentServicesQuery = `
-        SELECT aps.serviceid, aps.quantity, aps.price
+        SELECT aps.serviceid
         FROM appointmentservice aps
         INNER JOIN service sv ON aps.serviceid = sv.serviceid
         WHERE aps.appointmentid = $1
@@ -163,22 +172,32 @@ export default class QueueRepositoryImpl {
 
       for (const svc of apptServices) {
         await client.query(
-          `INSERT INTO queueservice (queueid, serviceid, quantity, price) VALUES ($1, $2, $3, $4)`,
-          [queueId, svc.serviceid, svc.quantity || 1, svc.price || null]
+          `INSERT INTO queueservice (queueid, serviceid) VALUES ($1, $2)`,
+          [queueId, svc.serviceid]
         );
       }
 
       await client.query("COMMIT");
     } catch (err) {
       await client.query("ROLLBACK");
+      console.error("DEBUG: syncAppointmentToQueue Error:", err);
       throw err;
     } finally {
       client.release();
     }
   }
 
-  async getTodayQueue() {
+  async getTodayQueue(branchid = null) {
+    console.log(`DEBUG: getTodayQueue requested for branch: ${branchid}`);
     await this.syncTodayAppointmentsToQueue();
+
+    const params = [];
+    let idx = 1;
+    let branchFilter = "";
+    if (branchid) {
+      branchFilter = ` AND q.branchid = $${idx++}`;
+      params.push(branchid);
+    }
 
     const query = `
       SELECT
@@ -199,6 +218,7 @@ export default class QueueRepositoryImpl {
         q.notes,
         q.createdat,
         q.updatedat,
+        q.branchid,
         s.firstname AS staff_firstname,
         s.lastname AS staff_lastname,
         COALESCE(
@@ -207,8 +227,7 @@ export default class QueueRepositoryImpl {
               'serviceid', sv.serviceid,
               'servicename', sv.servicename,
               'servicetype', sv.servicetype,
-              'quantity', qs.quantity,
-              'price', qs.price
+              'price', sv.amount
             )
           ) FILTER (WHERE sv.serviceid IS NOT NULL),
           '[]'
@@ -219,6 +238,7 @@ export default class QueueRepositoryImpl {
       LEFT JOIN service sv ON qs.serviceid = sv.serviceid
       WHERE q.queuedate = CURRENT_DATE
         AND q.status IN ('waiting', 'serving')
+        ${branchFilter}
       GROUP BY
         q.queueid,
         q.customerid,
@@ -237,6 +257,7 @@ export default class QueueRepositoryImpl {
         q.notes,
         q.createdat,
         q.updatedat,
+        q.branchid,
         s.firstname,
         s.lastname
       ORDER BY
@@ -245,9 +266,61 @@ export default class QueueRepositoryImpl {
     `;
 
 
-    const result = await pool.query(query);
+    const result = await pool.query(query, params);
     return result.rows;
   }
+
+  async getUpcomingQueue(branchid = null) {
+    const params = [];
+    let idx = 1;
+    let branchFilter = "";
+    if (branchid) {
+      branchFilter = ` AND q.branchid = $${idx++}`;
+      params.push(branchid);
+    }
+
+    const query = `
+      SELECT
+        q.queueid,
+        q.queuedate,
+        q.customerid,
+        q.appointmentid,
+        q.staffid,
+        q.customername,
+        q.source,
+        q.status,
+        q.arrivaltime,
+        q.isarrived,
+        q.branchid,
+        s.firstname AS staff_firstname,
+        s.lastname AS staff_lastname,
+        COALESCE(
+          JSON_AGG(
+            DISTINCT JSONB_BUILD_OBJECT(
+              'serviceid', sv.serviceid,
+              'servicename', sv.servicename,
+              'price', sv.amount
+            )
+          ) FILTER (WHERE sv.serviceid IS NOT NULL),
+          '[]'
+        ) AS services
+      FROM queue q
+      LEFT JOIN staff s ON q.staffid = s.staffid
+      LEFT JOIN queueservice qs ON q.queueid = qs.queueid
+      LEFT JOIN service sv ON qs.serviceid = sv.serviceid
+      WHERE q.queuedate > CURRENT_DATE
+        AND q.status = 'waiting'
+        ${branchFilter}
+      GROUP BY
+        q.queueid, s.firstname, s.lastname
+      ORDER BY
+        q.queuedate ASC, q.arrivaltime ASC
+    `;
+
+    const result = await pool.query(query, params);
+    return result.rows;
+  }
+
   async getTodayQueueAdmin() {
     await this.syncTodayAppointmentsToQueue();
 
@@ -260,6 +333,7 @@ export default class QueueRepositoryImpl {
       q.arrivaltime,
       q.isarrived,
       q.staffid,
+      q.branchid,
       s.firstname AS staff_firstname,
       s.lastname AS staff_lastname,
       COALESCE(
@@ -276,7 +350,7 @@ export default class QueueRepositoryImpl {
     LEFT JOIN queueservice qs ON q.queueid = qs.queueid
     LEFT JOIN service sv ON qs.serviceid = sv.serviceid
     WHERE q.queuedate = CURRENT_DATE
-    GROUP BY q.queueid, s.firstname, s.lastname
+    GROUP BY q.queueid, q.branchid, s.firstname, s.lastname
     ORDER BY q.arrivaltime ASC
   `;
 
@@ -289,6 +363,7 @@ export default class QueueRepositoryImpl {
     staffid = null,
     notes = null,
     services = [],
+    branchid = null,
   }) {
     const client = await pool.connect();
 
@@ -305,10 +380,11 @@ export default class QueueRepositoryImpl {
             status,
             arrivaltime,
             notes,
-            isarrived
+            isarrived,
+            branchid
           )
         VALUES
-          (CURRENT_DATE, $1, $2, 'walkin', 'waiting', CURRENT_TIMESTAMP, $3, true)
+          (CURRENT_DATE, $1, $2, 'walkin', 'waiting', CURRENT_TIMESTAMP, $3, true, $4)
         RETURNING *
       `;
 
@@ -316,6 +392,7 @@ export default class QueueRepositoryImpl {
         customername,
         staffid || null,
         notes || null,
+        branchid || null,
       ]);
 
       const queue = queueRes.rows[0];
@@ -323,12 +400,12 @@ export default class QueueRepositoryImpl {
       for (const svc of services) {
         await client.query(
           `
-            INSERT INTO queueservice
-              (queueid, serviceid, quantity, price)
-            VALUES
-              ($1, $2, $3, $4)
-          `,
-          [queue.queueid, svc.serviceid, svc.quantity || 1, svc.price || null]
+              INSERT INTO queueservice
+                (queueid, serviceid)
+              VALUES
+                ($1, $2)
+            `,
+          [queue.queueid, svc.serviceid]
         );
       }
 
@@ -420,7 +497,7 @@ export default class QueueRepositoryImpl {
         `SELECT appointmentid FROM queue WHERE queueid = $1`,
         [queueid]
       );
-      
+
       const appointmentid = res.rows[0]?.appointmentid;
 
       // 2. Delete the queue item

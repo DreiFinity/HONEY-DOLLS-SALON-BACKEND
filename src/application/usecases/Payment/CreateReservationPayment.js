@@ -34,7 +34,7 @@ export default class CreateReservationPayment {
     // 4. Calculate total service amount and 25% reservation fee
     let totalServiceAmount = 0;
     for (const svc of services) {
-      totalServiceAmount += Number(svc.price || 0) * Number(svc.quantity || 1);
+      totalServiceAmount += Number(svc.price || 0);
     }
 
     if (totalServiceAmount <= 0) {
@@ -139,7 +139,7 @@ export default class CreateReservationPayment {
     // 2. Get services to calculate total
     const services = await this.repository.getAppointmentServices(appointmentid);
     const totalAmount = services.reduce(
-      (sum, s) => sum + Number(s.price || 0) * (s.quantity || 1),
+      (sum, s) => sum + Number(s.price || 0),
       0
     );
 
@@ -193,10 +193,8 @@ export default class CreateReservationPayment {
 
     // 6. Update DB with balance info
     const updated = await this.repository.updateBalanceInfo(payment.reservationpaymentid, {
-      balance_amount: balanceAmount,
       balance_paymongo_id: paymongo_id,
       balance_checkout_url: checkout_url,
-      total_amount: totalAmount,
     });
 
     return updated;
@@ -206,21 +204,31 @@ export default class CreateReservationPayment {
    * Webhook handler for balance payments
    */
   async handleWebhook(event) {
+    console.log("DEBUG: ReservationPayment UseCase handling webhook...");
     if (event?.data?.attributes?.type !== "checkout_session.payment.paid") {
+      console.log("DEBUG: Not a checkout_session.payment.paid event");
       return false;
     }
 
     const session = event.data.attributes.data;
     const sessionId = session.id;
+    console.log("DEBUG: Processing PayMongo session ID:", sessionId);
 
     // Check if it's a reservation fee payment
     const reservationHandled = await this.repository.markPaidBySessionId(sessionId);
-    if (reservationHandled) return true;
+    if (reservationHandled) {
+      console.log("DEBUG: Successfully marked Reservation Payment as PAID for session:", sessionId);
+      return true;
+    }
 
     // Check if it's a balance payment
     const balanceHandled = await this.repository.markBalancePaid(sessionId);
-    if (balanceHandled) return true;
+    if (balanceHandled) {
+      console.log("DEBUG: Successfully marked Balance Payment as PAID for session:", sessionId);
+      return true;
+    }
 
+    console.log("DEBUG: Session ID not found in Reservation Payments, falling through...");
     return false;
   }
 }

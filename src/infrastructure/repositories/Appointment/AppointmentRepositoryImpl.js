@@ -27,47 +27,48 @@ export class AppointmentRepositoryImpl {
     notes,
     priority,
     status,
-    recurring,
-    recurrencerule,
     services,
+    branchid,
   }) {
     const client = await pool.connect();
 
     try {
       await client.query("BEGIN");
 
+      const targetBranchId = branchid;
+      const values = [
+        customerid,
+        starttime,
+        endtime,
+        staffid,
+        notes,
+        priority,
+        status || "pending",
+        targetBranchId,
+      ];
+
+      console.log("DEBUG Repository createAppointment targetBranchId:", targetBranchId);
+
       const appointmentRes = await client.query(
         `INSERT INTO appointment 
-          (customerid, starttime, endtime, staffid, notes, priority, status, recurring, recurrencerule)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          (customerid, starttime, endtime, staffid, notes, priority, status, branchid)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8::INTEGER)
         RETURNING *`,
-        [
-          customerid,
-          starttime,
-          endtime,
-          staffid,
-          notes,
-          priority,
-          status || "pending",
-          recurring,
-          recurrencerule,
-        ]
+        values
       );
 
       const appointment = appointmentRes.rows[0];
       const appointmentId = appointment.appointmentid;
 
       const serviceInsertQuery = `
-        INSERT INTO appointmentservice (appointmentid, serviceid, quantity, price)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO appointmentservice (appointmentid, serviceid)
+        VALUES ($1, $2)
       `;
 
       for (const svc of services) {
         await client.query(serviceInsertQuery, [
           appointmentId,
           svc.serviceid,
-          svc.quantity || 1,
-          svc.price || null,
         ]);
       }
 
@@ -113,7 +114,7 @@ export class AppointmentRepositoryImpl {
     return result.rows[0];
   }
 
-  async getAppointments({ staffid = null, customerid = null } = {}) {
+  async getAppointments({ staffid = null, customerid = null, branchid = null } = {}) {
     const params = [];
     let idx = 1;
 
@@ -129,6 +130,12 @@ export class AppointmentRepositoryImpl {
       params.push(customerid);
     }
 
+    if (branchid) {
+      whereClause += ` AND a.branchid = $${idx++}`;
+      params.push(branchid);
+    }
+
+
     const query = `
       SELECT 
         a.appointmentid,
@@ -139,28 +146,42 @@ export class AppointmentRepositoryImpl {
         a.notes,
         a.priority,
         a.status,
-        a.cancellationreason,
+        a.noshow,
+        a.branchid,
+        b.branchname,
         s.firstname,
         s.lastname,
         c.firstname AS customer_firstname,
         c.lastname AS customer_lastname,
         CONCAT(c.firstname, ' ', c.lastname) AS customername,
+        STRING_AGG(DISTINCT rp.reference_code, ', ') AS reference_code,
+        COALESCE(totals.total_service_cost, 0) AS total_amount,
+        (COALESCE(totals.total_service_cost, 0) - COALESCE(rp.reservation_fee, 0)) AS balance_amount,
         COALESCE(
           JSON_AGG(
             DISTINCT JSONB_BUILD_OBJECT(
               'serviceid', sv.serviceid,
               'servicename', sv.servicename,
               'servicetype', sv.servicetype,
-              'price', aps.price
+              'price', sv.amount
             )
           ) FILTER (WHERE sv.serviceid IS NOT NULL),
           '[]'
         ) AS services
       FROM appointment a
+      LEFT JOIN branch b ON a.branchid = b.branchid
       LEFT JOIN staff s 
         ON a.staffid = s.staffid
       LEFT JOIN customers c
         ON a.customerid = c.customerid
+      LEFT JOIN (
+          SELECT aps.appointmentid, SUM(sv.amount) AS total_service_cost
+          FROM appointmentservice aps
+          JOIN service sv ON sv.serviceid = aps.serviceid
+          GROUP BY aps.appointmentid
+      ) totals ON totals.appointmentid = a.appointmentid
+      LEFT JOIN reservationpayment rp
+        ON rp.appointmentid = a.appointmentid
       LEFT JOIN appointmentservice aps 
         ON aps.appointmentid = a.appointmentid
       LEFT JOIN service sv 
@@ -176,10 +197,16 @@ export class AppointmentRepositoryImpl {
         a.priority,
         a.status,
         a.cancellationreason,
+        a.checkedin,
+        a.noshow,
+        a.branchid,
+        b.branchname,
         s.firstname,
         s.lastname,
         c.firstname,
-        c.lastname
+        c.lastname,
+        rp.reservation_fee,
+        totals.total_service_cost
       ORDER BY a.starttime DESC
     `;
 

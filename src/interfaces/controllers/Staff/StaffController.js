@@ -27,14 +27,11 @@ export default class StaffController {
       // Data from request
       const { username, email, password, firstname, lastname, contact, branchid, image, role } = req.body;
       
-      // Hash password before use case
-      const hashedPassword = await bcrypt.hash(password, 10);
-      
       const useCase = new RegisterStaff(this.userRepository);
       const result = await useCase.execute({
         username,
         email,
-        password: hashedPassword,
+        password,
         firstname,
         lastname,
         contact,

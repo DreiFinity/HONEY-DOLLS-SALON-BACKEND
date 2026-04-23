@@ -2,6 +2,7 @@
 import { UserRepository } from "../../../domain/repositories/Login/UserRepository.js";
 import { pool } from "../../db/index.js";
 import bcrypt from "bcryptjs";
+import { v4 as uuidv4 } from "uuid";
 
 export class UserRepositoryImpl extends UserRepository {
   async createUser({ username, email, password, role }) {
@@ -205,5 +206,37 @@ export class UserRepositoryImpl extends UserRepository {
     await pool.query(`DELETE FROM users WHERE userid=$1`, [userid]);
 
     return { message: "Staff deleted successfully" };
+  }
+
+  async findStaffByUserId(userid) {
+    const { rows } = await pool.query(`SELECT * FROM staff WHERE userid = $1`, [
+      userid,
+    ]);
+    return rows[0];
+  }
+
+  async comparePassword(candidate, hashed) {
+    return await bcrypt.compare(candidate, hashed);
+  }
+
+  async getActiveSession(userid) {
+    const { rows } = await pool.query(
+      "SELECT * FROM active_sessions WHERE user_id = $1",
+      [userid]
+    );
+    return rows[0] || null;
+  }
+
+  async registerLogin(userid) {
+    const login_id = uuidv4();
+    const { rows } = await pool.query(
+      `INSERT INTO active_sessions (user_id, login_id, last_route)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) 
+       DO UPDATE SET login_id = $2, updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [userid, login_id, "/dashboard"]
+    );
+    return rows[0];
   }
 }

@@ -1,8 +1,5 @@
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { config } from "../../../config/env.js";
-import { v4 as uuidv4 } from "uuid";
-import db from "../../../infrastructure/db/index.js";
 
 export default class LoginUser {
   constructor(userRepository) {
@@ -10,31 +7,35 @@ export default class LoginUser {
   }
 
   async execute({ email, password, requiredRole }) {
-    console.log("LOGIN ATTEMPT:", { email, password, requiredRole });
-
     const user = await this.userRepository.findByEmail(email);
-    console.log("USER FOUND:", user);
 
-    if (!user) throw new Error("Invalid credentials");
+    if (!user) {
+      throw new Error("Invalid credentials");
+    }
 
-    console.log("DB HASH:", user.password);
+    const isPasswordValid = await this.userRepository.comparePassword(
+      password,
+      user.password,
+    );
 
-    const match = await bcrypt.compare(password, user.password);
-    console.log("PASSWORD MATCH:", match);
+    if (!isPasswordValid) {
+      throw new Error("Invalid credentials");
+    }
 
-    if (!match) throw new Error("Invalid credentials");
+    if (!user.isactive) {
+      throw new Error("Account is inactive");
+    }
 
-    console.log("ROLE CHECK:", user.role, "required:", requiredRole);
+    // Check for existing active session
+    const activeSession = await this.userRepository.getActiveSession(user.userid);
 
-    // 4️⃣ Single-session logic
-    let activeSession = await db.getActiveSession(user.userid); // use correct user id
-    let loginId;
-
+    let loginId = null;
     if (activeSession) {
-      loginId = activeSession.login_id; // reuse existing session
+      loginId = activeSession.login_id;
     } else {
-      loginId = uuidv4();
-      await db.createOrUpdateActiveSession(user.userid, loginId, "/dashboard");
+      // Register new login session
+      const newSession = await this.userRepository.registerLogin(user.userid);
+      loginId = newSession.login_id;
     }
 
     if (
@@ -44,8 +45,24 @@ export default class LoginUser {
       throw new Error("Forbidden role");
     }
 
+    let staffRole = null;
+    let branchid = null;
+    const normalizedRole = user.role?.trim().toLowerCase();
+    if (normalizedRole === "staff") {
+      const staff = await this.userRepository.findStaffByUserId(user.userid);
+      staffRole = staff?.role;
+      branchid = staff?.branchid;
+    }
+
     const token = jwt.sign(
-      { id: user.userid, role: user.role, login_id: loginId },
+      { 
+        id: user.userid, 
+        role: user.role, 
+        staffRole, 
+        specializations: staffRole, // Compatibility for receptionist check
+        branchid, 
+        login_id: loginId 
+      },
       config.jwtSecret,
       { expiresIn: "24h" },
     );
@@ -58,6 +75,8 @@ export default class LoginUser {
         email: user.email,
         role: user.role,
         isactive: user.isactive,
+        branchid: branchid,
+        specializations: staffRole,
       },
       last_route: activeSession ? activeSession.last_route : "/dashboard",
     };
