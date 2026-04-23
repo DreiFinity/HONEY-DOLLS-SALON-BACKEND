@@ -4,16 +4,18 @@ export default class ReservationPaymentRepositoryImpl {
   /**
    * Create a new reservation payment record
    */
-  async createReservationPayment(data) {
-    const result = await pool.query(
+  async createReservationPayment(data, client = null) {
+    const db = client || pool;
+    const result = await db.query(
       `INSERT INTO reservationpayment
-        (appointmentid, customerid, reference_code, method, status, currency,
+        (appointmentid, queueid, customerid, reference_code, method, status, currency,
          reservation_fee, checkout_url, paymongo_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       RETURNING appointmentid`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       RETURNING *`,
       [
-        data.appointmentid,
-        data.customerid,
+        data.appointmentid || null,
+        data.queueid || null,
+        data.customerid || null,
         data.reference_code,
         data.method || "gcash",
         data.status || "pending",
@@ -23,7 +25,7 @@ export default class ReservationPaymentRepositoryImpl {
         data.paymongo_id || null,
       ]
     );
-    return this.getByAppointmentId(result.rows[0].appointmentid);
+    return result.rows[0];
   }
 
   /**
@@ -34,18 +36,27 @@ export default class ReservationPaymentRepositoryImpl {
     try {
       await client.query("BEGIN");
 
-      // 1. Find the reservation payment
+      // 1. Find the reservation payment (check appointmentid OR queueid for totals)
       const paymentRes = await client.query(
         `SELECT rp.*,
-                COALESCE(totals.total_service_cost, 0) AS total_amount,
-                (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount
+                CASE 
+                  WHEN rp.appointmentid IS NOT NULL THEN COALESCE(apt_totals.total_service_cost, 0)
+                  WHEN rp.queueid IS NOT NULL THEN COALESCE(q_totals.total_service_cost, 0)
+                  ELSE 0
+                END AS total_amount
          FROM reservationpayment rp
          LEFT JOIN (
              SELECT aps.appointmentid, SUM(sv.amount) AS total_service_cost
              FROM appointmentservice aps
              JOIN service sv ON sv.serviceid = aps.serviceid
              GROUP BY aps.appointmentid
-         ) totals ON totals.appointmentid = rp.appointmentid
+         ) apt_totals ON apt_totals.appointmentid = rp.appointmentid
+         LEFT JOIN (
+             SELECT qs.queueid, SUM(sv.amount) AS total_service_cost
+             FROM queueservice qs
+             JOIN service sv ON sv.serviceid = qs.serviceid
+             GROUP BY qs.queueid
+         ) q_totals ON q_totals.queueid = rp.queueid
          WHERE rp.paymongo_id = $1`,
         [sessionId]
       );
@@ -65,16 +76,32 @@ export default class ReservationPaymentRepositoryImpl {
         [payment.reservationpaymentid]
       );
 
-      // 3. Update appointment status to 'paid' (staff needs to confirm)
+      // 3. Update appointment status if it exists
+      if (payment.appointmentid) {
+        await client.query(
+          `UPDATE appointment
+           SET status = 'paid', updatedat = CURRENT_TIMESTAMP
+           WHERE appointmentid = $1`,
+          [payment.appointmentid]
+        );
+      }
+
+      // 4. Update queue status if it exists (for walk-ins or appointments)
+      const linkColumn = payment.appointmentid ? 'appointmentid' : 'queueid';
+      const linkValue = payment.appointmentid || payment.queueid;
+
+      // If it's a walk-in, we mark the queue status as 'done' because they paid 100%
+      const statusUpdate = !payment.appointmentid ? ", status = 'done'" : "";
+
       await client.query(
-        `UPDATE appointment
-         SET status = 'paid', updatedat = CURRENT_TIMESTAMP
-         WHERE appointmentid = $1`,
-        [payment.appointmentid]
+        `UPDATE queue
+         SET updatedat = CURRENT_TIMESTAMP ${statusUpdate}
+         WHERE ${linkColumn} = $1`,
+        [linkValue]
       );
 
       await client.query("COMMIT");
-      return this.getByAppointmentId(payment.appointmentid);
+      return payment;
     } catch (err) {
       await client.query("ROLLBACK");
       console.error("ReservationPayment markPaidBySessionId error:", err);
@@ -101,6 +128,27 @@ export default class ReservationPaymentRepositoryImpl {
        ) totals ON totals.appointmentid = rp.appointmentid
        WHERE rp.appointmentid = $1`,
       [appointmentid]
+    );
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Get reservation payment by queue ID (for walk-ins)
+   */
+  async getByQueueId(queueid) {
+    const result = await pool.query(
+      `SELECT rp.*,
+              COALESCE(totals.total_service_cost, 0) AS total_amount,
+              (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount
+       FROM reservationpayment rp
+       LEFT JOIN (
+           SELECT qs.queueid, SUM(sv.amount) AS total_service_cost
+           FROM queueservice qs
+           JOIN service sv ON sv.serviceid = qs.serviceid
+           GROUP BY qs.queueid
+       ) totals ON totals.queueid = rp.queueid
+       WHERE rp.queueid = $1`,
+      [queueid]
     );
     return result.rows[0] || null;
   }
@@ -137,18 +185,26 @@ export default class ReservationPaymentRepositoryImpl {
   async getAll() {
     const result = await pool.query(
       `SELECT rp.*,
-              a.starttime, a.endtime, a.status AS appointment_status, a.customerid,
-              c.firstname AS customer_firstname, c.lastname AS customer_lastname,
+              a.starttime, a.endtime, a.status AS appointment_status,
+              COALESCE(a.customerid, q.customerid) AS customerid,
+              COALESCE(c.firstname, q.customername, 'Walk-in Customer') AS customer_firstname,
+              COALESCE(c.lastname, '') AS customer_lastname,
               u.email AS customer_email,
-              s.firstname AS staff_firstname, s.lastname AS staff_lastname,
-              COALESCE(totals.total_service_cost, 0) AS total_amount,
-              (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount,
-              totals.service_names
+              COALESCE(s.firstname, qs_staff.firstname) AS staff_firstname, 
+              COALESCE(s.lastname, qs_staff.lastname) AS staff_lastname,
+              COALESCE(apt_totals.total_service_cost, q_totals.total_service_cost, 0) AS total_amount,
+              CASE 
+                WHEN rp.appointmentid IS NOT NULL THEN (COALESCE(apt_totals.total_service_cost, 0) - rp.reservation_fee)
+                ELSE COALESCE(q_totals.total_service_cost, 0)
+              END AS balance_amount,
+              COALESCE(apt_totals.service_names, q_totals.service_names) AS service_names
        FROM reservationpayment rp
-       JOIN appointment a ON a.appointmentid = rp.appointmentid
-       JOIN customers c ON c.customerid = a.customerid
+       LEFT JOIN appointment a ON a.appointmentid = rp.appointmentid
+       LEFT JOIN queue q ON q.queueid = rp.queueid
+       LEFT JOIN customers c ON c.customerid = a.customerid
        LEFT JOIN users u ON u.userid = c.userid
        LEFT JOIN staff s ON s.staffid = a.staffid
+       LEFT JOIN staff qs_staff ON qs_staff.staffid = q.staffid
        LEFT JOIN (
            SELECT aps.appointmentid, 
                   SUM(sv.amount) AS total_service_cost,
@@ -156,7 +212,15 @@ export default class ReservationPaymentRepositoryImpl {
            FROM appointmentservice aps
            JOIN service sv ON sv.serviceid = aps.serviceid
            GROUP BY aps.appointmentid
-       ) totals ON totals.appointmentid = rp.appointmentid
+       ) apt_totals ON apt_totals.appointmentid = rp.appointmentid
+       LEFT JOIN (
+           SELECT qs.queueid, 
+                  SUM(sv.amount) AS total_service_cost,
+                  STRING_AGG(sv.servicename, ', ') AS service_names
+           FROM queueservice qs
+           JOIN service sv ON sv.serviceid = qs.serviceid
+           GROUP BY qs.queueid
+       ) q_totals ON q_totals.queueid = rp.queueid
        ORDER BY rp.created_at DESC`
     );
     return result.rows;
@@ -244,18 +308,27 @@ export default class ReservationPaymentRepositoryImpl {
     try {
       await client.query("BEGIN");
 
-      // 1. Find the record
+      // 1. Find the record (check appointmentid OR queueid for totals)
       const paymentRes = await client.query(
         `SELECT rp.*,
-                COALESCE(totals.total_service_cost, 0) AS total_amount,
-                (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount
+                CASE 
+                  WHEN rp.appointmentid IS NOT NULL THEN COALESCE(apt_totals.total_service_cost, 0)
+                  WHEN rp.queueid IS NOT NULL THEN COALESCE(q_totals.total_service_cost, 0)
+                  ELSE 0
+                END AS total_amount
          FROM reservationpayment rp
          LEFT JOIN (
              SELECT aps.appointmentid, SUM(sv.amount) AS total_service_cost
              FROM appointmentservice aps
              JOIN service sv ON sv.serviceid = aps.serviceid
              GROUP BY aps.appointmentid
-         ) totals ON totals.appointmentid = rp.appointmentid
+         ) apt_totals ON apt_totals.appointmentid = rp.appointmentid
+         LEFT JOIN (
+             SELECT qs.queueid, SUM(sv.amount) AS total_service_cost
+             FROM queueservice qs
+             JOIN service sv ON sv.serviceid = qs.serviceid
+             GROUP BY qs.queueid
+         ) q_totals ON q_totals.queueid = rp.queueid
          WHERE rp.balance_paymongo_id = $1`,
         [balanceSessionId]
       );
@@ -277,24 +350,29 @@ export default class ReservationPaymentRepositoryImpl {
         [payment.reservationpaymentid]
       );
 
-      // 3. Update appointment status to completed
-      await client.query(
-        `UPDATE appointment
-         SET status = 'completed', updatedat = CURRENT_TIMESTAMP
-         WHERE appointmentid = $1`,
-        [payment.appointmentid]
-      );
+      // 3. Update appointment status if it exists
+      if (payment.appointmentid) {
+        await client.query(
+          `UPDATE appointment
+           SET status = 'completed', updatedat = CURRENT_TIMESTAMP
+           WHERE appointmentid = $1`,
+          [payment.appointmentid]
+        );
+      }
 
       // 4. Update queue status to done (if it exists)
+      const linkColumn = payment.appointmentid ? 'appointmentid' : 'queueid';
+      const linkValue = payment.appointmentid || payment.queueid;
+
       await client.query(
         `UPDATE queue
          SET status = 'done', updatedat = CURRENT_TIMESTAMP
-         WHERE appointmentid = $1`,
-        [payment.appointmentid]
+         WHERE ${linkColumn} = $1`,
+        [linkValue]
       );
 
       await client.query("COMMIT");
-      return this.getByAppointmentId(payment.appointmentid);
+      return payment;
     } catch (err) {
       await client.query("ROLLBACK");
       console.error("markBalancePaid error:", err);

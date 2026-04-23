@@ -159,7 +159,7 @@ export default class CreateReservationPayment {
 
     const lineItem = {
       name: `Service Balance — ${serviceNames}`,
-      description: `Remaining 75% balance for appointment #${appointmentid}`,
+      description: `Remaining balance for appointment #${appointmentid} (Amount: ₱${balanceAmount.toFixed(2)})`,
       amount: Math.round(balanceAmount * 100), // centavos
       currency: "PHP",
       quantity: 1,

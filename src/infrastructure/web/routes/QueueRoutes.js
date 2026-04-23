@@ -10,6 +10,7 @@ export default function QueueRoutes(queueRepository) {
   router.get("/upcoming", auth, (req, res) => controller.getUpcoming(req, res));
   router.post("/", auth, (req, res) => controller.create(req, res));
   router.put("/:id", auth, (req, res) => controller.update(req, res));
+  router.get("/status/:id", auth, (req, res) => controller.getStatus(req, res));
   router.delete("/:id", auth, (req, res) => controller.delete(req, res));
   router.get("/admin", auth, (req, res) => controller.getAdminQueue(req, res));
   return router;

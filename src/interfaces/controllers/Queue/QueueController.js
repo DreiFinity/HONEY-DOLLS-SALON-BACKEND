@@ -100,6 +100,17 @@ export default class QueueController {
     }
   }
 
+  async getStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const queue = await this.queueRepository.getById(id);
+      if (!queue) return res.status(404).json({ message: "Queue entry not found" });
+      return res.json({ status: queue.status });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  }
+
   async delete(req, res) {
     try {
       const { id } = req.params;

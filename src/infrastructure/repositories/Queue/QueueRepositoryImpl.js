@@ -1,4 +1,8 @@
 import { pool } from "../../db/index.js";
+import ReservationPaymentRepositoryImpl from "../../repositories/Payment/ReservationPaymentRepositoryImpl.js";
+import axios from "axios";
+import { config } from "../../../config/env.js";
+
 
 export default class QueueRepositoryImpl {
   async syncTodayAppointmentsToQueue() {
@@ -221,6 +225,11 @@ export default class QueueRepositoryImpl {
         q.branchid,
         s.firstname AS staff_firstname,
         s.lastname AS staff_lastname,
+        CASE 
+          WHEN q.source = 'walkin' THEN rp.checkout_url 
+          ELSE rp.balance_checkout_url 
+        END AS balance_checkout_url,
+        rp.status AS payment_status,
         COALESCE(
           JSON_AGG(
             DISTINCT JSONB_BUILD_OBJECT(
@@ -236,6 +245,10 @@ export default class QueueRepositoryImpl {
       LEFT JOIN staff s ON q.staffid = s.staffid
       LEFT JOIN queueservice qs ON q.queueid = qs.queueid
       LEFT JOIN service sv ON qs.serviceid = sv.serviceid
+      LEFT JOIN reservationpayment rp ON (
+        (q.appointmentid IS NOT NULL AND q.appointmentid = rp.appointmentid) OR
+        (q.appointmentid IS NULL AND q.queueid = rp.queueid)
+      )
       WHERE q.queuedate = CURRENT_DATE
         AND q.status IN ('waiting', 'serving')
         ${branchFilter}
@@ -259,7 +272,10 @@ export default class QueueRepositoryImpl {
         q.updatedat,
         q.branchid,
         s.firstname,
-        s.lastname
+        s.lastname,
+        rp.checkout_url,
+        rp.balance_checkout_url,
+        rp.status
       ORDER BY
         CASE WHEN q.isarrived = true THEN 0 ELSE 1 END,
         q.arrivaltime ASC
@@ -397,17 +413,102 @@ export default class QueueRepositoryImpl {
 
       const queue = queueRes.rows[0];
 
+      // ---------- Walk‑in total amount calculation ----------
+      // Fetch service prices from DB to avoid trusting client payload
+      const serviceIds = services.map(s => s.serviceid);
+      const serviceRes = await client.query(
+        `SELECT serviceid, amount, servicename FROM service WHERE serviceid = ANY($1::int[])`,
+        [serviceIds]
+      );
+      const priceMap = {};
+      serviceRes.rows.forEach(row => {
+        priceMap[row.serviceid] = Number(row.amount);
+      });
+
+      let totalAmount = 0;
       for (const svc of services) {
+        // Insert the relation between queue and service
         await client.query(
           `
-              INSERT INTO queueservice
-                (queueid, serviceid)
-              VALUES
-                ($1, $2)
-            `,
+            INSERT INTO queueservice
+              (queueid, serviceid)
+            VALUES
+              ($1, $2)
+          `,
           [queue.queueid, svc.serviceid]
         );
+
+        const price = priceMap[svc.serviceid] || 0;
+        const qty = Number(svc.quantity) || 1; // default to 1 if not provided or NaN
+        totalAmount += price * qty;
       }
+
+      // ---------- Walk‑in reservation payment with PayMongo ----------
+      const reference_code = `WALK-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      // Get service names for description
+      const serviceNames = serviceRes.rows.map(s => s.servicename).join(", ") || "Walk-in Services";
+
+      let checkout_url = null;
+      let paymongo_id = null;
+
+      console.log("DEBUG: Creating PayMongo session for walk-in. Total:", totalAmount.toFixed(2), "Services:", serviceNames);
+      try {
+        const paymongoResponse = await axios.post(
+          "https://api.paymongo.com/v1/checkout_sessions",
+          {
+            data: {
+              attributes: {
+                billing: {
+                  name: customername,
+                  email: "walkin@salon.com",
+                  phone: "09123456789",
+                },
+                line_items: [
+                  {
+                    name: `Walk-in Payment — ${serviceNames}`,
+                    description: `Payment for walk-in queue #${queue.queueid}`,
+                    amount: Math.max(Math.round(totalAmount * 100), 2000), // PHP in centavos (min 20 PHP)
+                    currency: "PHP",
+                    quantity: 1,
+                  },
+                ],
+                payment_method_types: ["gcash"],
+                success_url: `${config.frontendUrl}/staff/queueing?payment=success&queueid=${queue.queueid}`,
+                cancel_url: `${config.frontendUrl}/staff/queueing?payment=cancelled&queueid=${queue.queueid}`,
+              },
+            },
+          },
+          {
+            auth: {
+              username: config.paymongoSecret,
+              password: "",
+            },
+          }
+        );
+
+        checkout_url = paymongoResponse.data.data.attributes.checkout_url;
+        paymongo_id = paymongoResponse.data.data.id;
+        console.log("DEBUG: PayMongo session created successfully:", paymongo_id);
+      } catch (pmError) {
+        const errorData = pmError.response?.data || pmError.message;
+        console.error("❌ PayMongo Session Creation Error for Walk-in:", JSON.stringify(errorData, null, 2));
+        // We still create the payment record but with null checkout_url if PayMongo fails
+      }
+
+      const reservationRepo = new ReservationPaymentRepositoryImpl();
+      await reservationRepo.createReservationPayment({
+        appointmentid: null,
+        queueid: queue.queueid,
+        customerid: null,
+        reference_code,
+        method: "gcash",
+        status: "pending",
+        currency: "PHP",
+        reservation_fee: totalAmount,
+        checkout_url,
+        paymongo_id,
+      }, client);
 
       await client.query("COMMIT");
       return queue;
@@ -526,5 +627,10 @@ export default class QueueRepositoryImpl {
     } finally {
       client.release();
     }
+  }
+
+  async getById(queueid) {
+    const res = await pool.query(`SELECT * FROM queue WHERE queueid = $1`, [queueid]);
+    return res.rows[0];
   }
 }
