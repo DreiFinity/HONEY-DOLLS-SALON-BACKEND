@@ -41,12 +41,14 @@ import CustomerPaymentOrderRoutes from "./infrastructure/web/routes/CustomerPaym
 import BranchRoutes from "./infrastructure/web/routes/BranchRoutes.js";
 import SupplierPurchaseRoutes from "./infrastructure/web/routes/SupplierPurchaseRoutes.js";
 import SupplierRoutes from "./infrastructure/web/routes/SupplierRoutes.js";
+import customerAdminRoutes from "./infrastructure/web/routes/CustomerAdminRoutes.js";
 import InventoryRoutes from "./infrastructure/web/routes/InventoryRoutes.js";
 import ReturnRoutes from "./infrastructure/web/routes/ReturnRoutes.js";
 import ReservationPaymentRoutes from "./infrastructure/web/routes/ReservationPaymentRoutes.js";
 import ProductAdjustmentsRoutes from "./infrastructure/web/routes/ProductAdjustmentsRoutes.js";
 import ProductTransferRoutes from "./infrastructure/web/routes/ProductTransferRoutes.js";
 import ProductAdjustmentsRepositoryImpl from "./infrastructure/repositories/ProductAdjustments/ProductAdjustmentsRepositoryImpl.js";
+import AdminSalesRoutes from "./infrastructure/web/routes/AdminSalesRoutes.js";
 import CustomerPaymentOrderRepositoryImpl from "./infrastructure/repositories/Payment/CustomerPaymentOrderRepositoryImpl.js";
 import CustomerProductPaymentRepositoryImpl from "./infrastructure/repositories/Payment/CustomerProductPaymentRepositoryImpl.js";
 import SyncTrackingStatus from "./application/usecases/Payment/SyncTrackingStatus.js";
@@ -74,6 +76,7 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 // Routes
 app.use("/api/queue", QueueRoutes(queueRepository));
 app.use("/api/auth", AuthRoutes);
+app.use("/api/user", FetchUserRoutes);
 
 app.use("/api/appointment", AppointmentRoutes(appointmentRepository, queueRepository, reservationPaymentRepository));
 app.use("/api/staff", StaffRoute(staffRepository));
@@ -87,9 +90,9 @@ app.use("/api/product-transfers", ProductTransferRoutes);
 
 app.use("/api/purchase", PurchaseOrderRoutes(purchaseOrderRepository));
 app.use("/api/supplier-purchase", SupplierPurchaseRoutes);
-app.use("/api/suppliers", SupplierRoutes(express));
-
-app.use("/api/user", FetchUserRoutes);
+app.use("/api/suppliers", SupplierRoutes);
+app.use("/api/admin/sales", AdminSalesRoutes);
+app.use("/api/inventory", InventoryRoutes);
 app.use("/api/online-orders", onlineOrderRoutes);
 app.use("/api/customer-address", customerAddressRoutes);
 app.get("/test", (req, res) => {
@@ -103,6 +106,7 @@ app.use("/api/customer-payment-orders", CustomerPaymentOrderRoutes);
 app.use("/api/inventory", InventoryRoutes);
 app.use("/api/returns", ReturnRoutes);
 app.use("/api/reservation-payment", ReservationPaymentRoutes);
+app.use("/api/admin/customers", customerAdminRoutes);
 
 app.use(
   "/api/uploads",

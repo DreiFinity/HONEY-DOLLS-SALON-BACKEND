@@ -1,0 +1,30 @@
+[
+  {
+    "column_name": "supplierid",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "suppliername",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "contactperson",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "contacts",
+    "data_type": "integer"
+  },
+  {
+    "column_name": "address",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "remarks",
+    "data_type": "character varying"
+  },
+  {
+    "column_name": "productid",
+    "data_type": "integer"
+  }
+]

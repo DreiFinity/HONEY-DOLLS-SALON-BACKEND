@@ -43,6 +43,7 @@ export async function getProfile(req, res) {
         phone: profile.phone || "",
         profileimage: profile.profileimage || profile.image || null,
         role: profile.role || req.user.role,
+        staffRole: profile.staffRole || null,
         branchName: profile.branchName || null,
         branchLocation: profile.branchLocation || null,
       },

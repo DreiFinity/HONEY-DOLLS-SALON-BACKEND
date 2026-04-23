@@ -1,18 +1,30 @@
-import { pool } from "../../db/index.js";
+import express from "express";
+import SupplierRepositoryImpl from "../../repositories/Supplier/SupplierRepositoryImpl.js";
+import GetAllSuppliers from "../../../application/usecases/Supplier/GetAllSuppliers.js";
+import CreateSupplier from "../../../application/usecases/Supplier/CreateSupplier.js";
+import UpdateSupplier from "../../../application/usecases/Supplier/UpdateSupplier.js";
+import DeleteSupplier from "../../../application/usecases/Supplier/DeleteSupplier.js";
+import SupplierController from "../../../interfaces/controllers/Supplier/SupplierController.js";
+import auth from "../middleware/auth.js";
 
-const SupplierRoutes = (express) => {
-  const router = express.Router();
+const router = express.Router();
 
-  router.get("/", async (req, res) => {
-    try {
-      const result = await pool.query("SELECT supplierid, suppliername FROM supplier ORDER BY suppliername");
-      res.json({ success: true, data: result.rows });
-    } catch (err) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
+const repo = new SupplierRepositoryImpl();
+const getAllSuppliers = new GetAllSuppliers(repo);
+const createSupplier = new CreateSupplier(repo);
+const updateSupplier = new UpdateSupplier(repo);
+const deleteSupplier = new DeleteSupplier(repo);
 
-  return router;
-};
+const controller = new SupplierController(
+  getAllSuppliers,
+  createSupplier,
+  updateSupplier,
+  deleteSupplier
+);
 
-export default SupplierRoutes;
+router.get("/", auth, controller.getAllHandler);
+router.post("/", auth, controller.createHandler);
+router.put("/:id", auth, controller.updateHandler);
+router.delete("/:id", auth, controller.deleteHandler);
+
+export default router;

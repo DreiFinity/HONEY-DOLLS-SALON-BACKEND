@@ -11,7 +11,7 @@ export default class StaffRepositoryImpl {
   }
   async findByUserId(userId) {
     const query = `
-      SELECT s.firstname, s.lastname, s.contact, s.branchid, s.image, b.branchname, b.location as branch_location, u.email
+      SELECT s.firstname, s.lastname, s.contact, s.branchid, s.image, s.role, b.branchname, b.location as branch_location, u.email
       FROM staff s
       LEFT JOIN branch b ON s.branchid = b.branchid
       JOIN users u ON s.userid = u.userid

@@ -2,6 +2,32 @@ import CustomerAddressRepository from "../../../domain/repositories/Customer/Cus
 import { pool } from "../../db/index.js";
 
 export default class CustomerAddressRepositoryImpl extends CustomerAddressRepository {
+  async getAllCustomers() {
+    const query = `
+      SELECT 
+        c.customerid,
+        c.firstname, 
+        c.lastname, 
+        c.contact, 
+        u.email,
+        a.street,
+        a.barangay,
+        a.city,
+        a.province,
+        a.postal_code
+      FROM customers c
+      JOIN users u ON c.userid = u.userid
+      LEFT JOIN (
+        SELECT customerid, street, barangay, city, province, postal_code
+        FROM customer_addresses
+        WHERE is_default = true
+      ) a ON c.customerid = a.customerid
+      ORDER BY c.customerid DESC
+    `;
+    const result = await pool.query(query);
+    return result.rows;
+  }
+
   async findByUserId(userId) {
     const query = `
       SELECT c.firstname, c.lastname, c.contact, c.profileimage, u.email

@@ -195,17 +195,47 @@ export class UserRepositoryImpl extends UserRepository {
   }
 
   async deleteStaff(staffid) {
-    // Delete user first
     const { rows } = await pool.query(`SELECT userid FROM staff WHERE staffid=$1`, [
       staffid,
     ]);
     if (rows.length === 0) throw new Error("Staff not found");
 
     const userid = rows[0].userid;
-    await pool.query(`DELETE FROM staff WHERE staffid=$1`, [staffid]);
-    await pool.query(`DELETE FROM users WHERE userid=$1`, [userid]);
-
-    return { message: "Staff deleted successfully" };
+    
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      
+      // 1. Delete reservation payments tied to this staff's queues
+      await client.query(
+        "DELETE FROM reservationpayment WHERE queueid IN (SELECT queueid FROM queue WHERE staffid=$1)",
+        [staffid]
+      );
+      
+      // 2. Delete staff-specific dependencies
+      await client.query("DELETE FROM queue WHERE staffid=$1", [staffid]);
+      await client.query("DELETE FROM appointment WHERE staffid=$1", [staffid]);
+      await client.query("DELETE FROM supplierreturn WHERE handledby=$1", [staffid]);
+      await client.query("DELETE FROM transferreturn WHERE handledby=$1", [staffid]);
+      
+      // 3. Delete user-specific dependencies
+      await client.query("DELETE FROM productwaste WHERE userid=$1", [userid]);
+      await client.query("DELETE FROM damagedetail WHERE userid=$1", [userid]);
+      await client.query("DELETE FROM product_adjustments WHERE userid=$1", [userid]);
+      await client.query("DELETE FROM active_sessions WHERE user_id=$1", [userid]);
+      
+      // 4. Finally delete the staff and user records
+      await client.query("DELETE FROM staff WHERE staffid=$1", [staffid]);
+      await client.query("DELETE FROM users WHERE userid=$1", [userid]);
+      
+      await client.query("COMMIT");
+      return { message: "Staff deleted successfully" };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async findStaffByUserId(userid) {
