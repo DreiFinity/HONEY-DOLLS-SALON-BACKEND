@@ -43,9 +43,10 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
 
   async findAll() {
     const query = `
-      SELECT sp.*, s.suppliername
+      SELECT sp.*, s.suppliername, b.branchname
       FROM supplierpurchase sp
       JOIN supplier s ON sp.supplierid = s.supplierid
+      LEFT JOIN branch b ON sp.branchid = b.branchid
       ORDER BY sp.createdat DESC;
     `;
     const { rows } = await pool.query(query);
@@ -55,9 +56,10 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
   async findById(purchaseid) {
     // Get master
     const orderQuery = `
-      SELECT sp.*, s.suppliername
+      SELECT sp.*, s.suppliername, b.branchname
       FROM supplierpurchase sp
       JOIN supplier s ON sp.supplierid = s.supplierid
+      LEFT JOIN branch b ON sp.branchid = b.branchid
       WHERE sp.purchaseid = $1;
     `;
     const orderRes = await pool.query(orderQuery, [purchaseid]);

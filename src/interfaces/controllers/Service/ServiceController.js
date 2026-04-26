@@ -29,10 +29,23 @@ export default class ServiceController {
 
   async create(req, res) {
     try {
+      console.log("[DEBUG] ServiceController.create req.body:", req.body);
+      console.log("[DEBUG] ServiceController.create req.file:", req.file);
+
       const { servicename, servicetype, amount, image } = req.body;
 
       if (!servicename || !servicetype || !amount || !image) {
-        return res.status(400).json({ message: "Missing required fields" });
+        const missing = {
+          servicename: !servicename,
+          servicetype: !servicetype,
+          amount: !amount,
+          image: !image
+        };
+        console.log("[DEBUG] Validation failed. Missing fields:", missing);
+        return res.status(400).json({ 
+          message: "Missing required fields",
+          missing 
+        });
       }
 
       const newService = await this.serviceRepository.createService({

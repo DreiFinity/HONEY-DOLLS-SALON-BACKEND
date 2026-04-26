@@ -6,11 +6,12 @@ export default class SalesController {
   async getStats(req, res) {
     try {
       const days = parseInt(req.query.days) || 7;
-      const [dailyStats, chartData, topProducts, orderStats] = await Promise.all([
+      const [dailyStats, chartData, topProducts, orderStats, salesRecords] = await Promise.all([
         this.salesRepository.getDailyStats(),
         this.salesRepository.getSalesChartData(days),
         this.salesRepository.getTopProducts(6),
-        this.salesRepository.getOrderStats(days)
+        this.salesRepository.getOrderStats(days),
+        this.salesRepository.getSalesRecords()
       ]);
 
       return res.json({
@@ -19,7 +20,8 @@ export default class SalesController {
           dailyStats,
           chartData,
           topProducts,
-          orderStats
+          orderStats,
+          salesRecords
         }
       });
     } catch (err) {

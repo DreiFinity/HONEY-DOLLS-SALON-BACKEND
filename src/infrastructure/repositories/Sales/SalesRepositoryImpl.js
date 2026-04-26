@@ -11,6 +11,7 @@ export default class SalesRepositoryImpl {
       JOIN orderdetails od ON od.orderid = o.orderid
       WHERE (cp.status = 'paid' OR o.status = 'delivered')
         AND (cp.updated_at AT TIME ZONE 'Asia/Manila')::date = (NOW() AT TIME ZONE 'Asia/Manila')::date
+        AND NOT EXISTS (SELECT 1 FROM product_returns pr WHERE pr.orderid = o.orderid AND pr.productid = od.productid AND pr.status != 'rejected')
     `);
 
     // Today's order count
@@ -22,13 +23,34 @@ export default class SalesRepositoryImpl {
 
     // Today's revenue (including delivery fees)
     const revenueRes = await pool.query(`
-      SELECT COALESCE(SUM(od.unit_price * od.quantity), 0) + COALESCE(SUM(cp.delivery_fee), 0) as total_revenue
-      FROM customerpayment cp
-      JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
-      JOIN orders o ON o.orderid = cpo.orderid
-      JOIN orderdetails od ON od.orderid = o.orderid
-      WHERE (cp.status = 'paid' OR o.status = 'delivered')
-        AND (cp.updated_at AT TIME ZONE 'Asia/Manila')::date = (NOW() AT TIME ZONE 'Asia/Manila')::date
+      WITH item_sales AS (
+        SELECT 
+          cp.customerpaymentid,
+          SUM(od.unit_price * od.quantity) as items_total,
+          SUM((od.unit_price - COALESCE(p.supplier_price, 0)) * od.quantity) as items_profit
+        FROM customerpayment cp
+        JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
+        JOIN orders o ON o.orderid = cpo.orderid
+        JOIN orderdetails od ON od.orderid = o.orderid
+        JOIN products p ON p.productid = od.productid
+        WHERE (cp.status = 'paid' OR o.status = 'delivered')
+          AND (cp.updated_at AT TIME ZONE 'Asia/Manila')::date = (NOW() AT TIME ZONE 'Asia/Manila')::date
+          AND NOT EXISTS (SELECT 1 FROM product_returns pr WHERE pr.orderid = o.orderid AND pr.productid = od.productid AND pr.status != 'rejected')
+        GROUP BY cp.customerpaymentid
+      ),
+      distinct_payments AS (
+        SELECT DISTINCT cp.customerpaymentid, cp.delivery_fee
+        FROM customerpayment cp
+        JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
+        JOIN orders o ON o.orderid = cpo.orderid
+        WHERE (cp.status = 'paid' OR o.status = 'delivered')
+          AND (cp.updated_at AT TIME ZONE 'Asia/Manila')::date = (NOW() AT TIME ZONE 'Asia/Manila')::date
+      )
+      SELECT 
+        COALESCE(SUM(items_total), 0) + COALESCE(SUM(delivery_fee), 0) as total_revenue,
+        COALESCE(SUM(items_profit), 0) as total_profit
+      FROM item_sales
+      FULL OUTER JOIN distinct_payments USING (customerpaymentid)
     `);
 
     // Today's unique customer visitors (count customers with orders today)
@@ -42,6 +64,7 @@ export default class SalesRepositoryImpl {
       todaySale: parseFloat(salesRes.rows[0].total_sales),
       todayOrders: parseInt(ordersRes.rows[0].total_orders),
       todayRevenue: parseFloat(revenueRes.rows[0].total_revenue),
+      todayProfit: parseFloat(revenueRes.rows[0].total_profit),
       todayVisitors: parseInt(visitorsRes.rows[0].total_visitors)
     };
   }
@@ -59,6 +82,8 @@ export default class SalesRepositoryImpl {
       LEFT JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
       LEFT JOIN orders o ON o.orderid = cpo.orderid
       LEFT JOIN orderdetails od ON od.orderid = o.orderid
+      WHERE NOT EXISTS (SELECT 1 FROM product_returns pr WHERE pr.orderid = o.orderid AND pr.productid = od.productid AND pr.status != 'rejected')
+         OR od.productid IS NULL
       GROUP BY d.date
       ORDER BY d.date ASC
     `, [days - 1]);
@@ -75,6 +100,7 @@ export default class SalesRepositoryImpl {
         p.price
       FROM orderdetails od
       JOIN products p ON p.productid = od.productid
+      WHERE NOT EXISTS (SELECT 1 FROM product_returns pr WHERE pr.orderid = od.orderid AND pr.productid = od.productid AND pr.status != 'rejected')
       GROUP BY p.productid, p.prodname, p.price
       ORDER BY sold DESC
       LIMIT $1
@@ -99,21 +125,67 @@ export default class SalesRepositoryImpl {
       ) d
       LEFT JOIN orders o ON (o.createdat AT TIME ZONE 'Asia/Manila')::date = d.date
       LEFT JOIN orderdetails od ON od.orderid = o.orderid
+      WHERE NOT EXISTS (SELECT 1 FROM product_returns pr WHERE pr.orderid = o.orderid AND pr.productid = od.productid AND pr.status != 'rejected')
+         OR od.productid IS NULL
       GROUP BY d.date
       ORDER BY d.date ASC
     `, [days - 1]);
     return res.rows;
   }
 
+  async getSalesRecords() {
+    const res = await pool.query(`
+      SELECT 
+        o.orderid,
+        c.firstname || ' ' || c.lastname as customer_name,
+        p.prodname as product_name,
+        od.quantity,
+        od.unit_price as price,
+        COALESCE(p.supplier_price, 0) as supplier_price,
+        ((od.unit_price - COALESCE(p.supplier_price, 0)) * od.quantity) as profit,
+        (od.quantity * od.unit_price) as total_amount,
+        cp.delivery_fee,
+        o.createdat as date,
+        pr.status as return_status
+      FROM orders o
+      JOIN orderdetails od ON o.orderid = od.orderid
+      JOIN products p ON p.productid = od.productid
+      JOIN customers c ON c.customerid = o.customerid
+      JOIN customerpayment_orders cpo ON cpo.orderid = o.orderid
+      JOIN customerpayment cp ON cp.customerpaymentid = cpo.customerpaymentid
+      LEFT JOIN product_returns pr ON pr.orderid = o.orderid AND pr.productid = od.productid
+      WHERE LOWER(o.status) IN ('completed', 'delivered') 
+        AND LOWER(cp.status) = 'paid'
+      ORDER BY o.createdat DESC
+    `);
+    return res.rows;
+  }
+
   async getDashboardStats() {
-    // 1. Overall Product Sales
+    // 1. Overall Product Sales (Items + Delivery Fees)
     const productSalesRes = await pool.query(`
-      SELECT COALESCE(SUM(od.unit_price * od.quantity), 0) as total
-      FROM customerpayment cp
-      JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
-      JOIN orders o ON o.orderid = cpo.orderid
-      JOIN orderdetails od ON od.orderid = o.orderid
-      WHERE cp.status = 'paid' OR o.status IN ('shipping', 'delivered', 'completed')
+      WITH item_totals AS (
+        SELECT 
+          SUM(od.unit_price * od.quantity) as items_sum
+        FROM customerpayment cp
+        JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
+        JOIN orders o ON o.orderid = cpo.orderid
+        JOIN orderdetails od ON od.orderid = o.orderid
+        WHERE (cp.status = 'paid' OR o.status IN ('shipping', 'delivered', 'completed'))
+          AND NOT EXISTS (SELECT 1 FROM product_returns pr WHERE pr.orderid = o.orderid AND pr.productid = od.productid AND pr.status != 'rejected')
+      ),
+      delivery_sum AS (
+        SELECT SUM(delivery_fee) as delivery_total
+        FROM (
+          SELECT DISTINCT cp.customerpaymentid, cp.delivery_fee
+          FROM customerpayment cp
+          JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
+          JOIN orders o ON o.orderid = cpo.orderid
+          WHERE (cp.status = 'paid' OR o.status IN ('shipping', 'delivered', 'completed'))
+        ) p
+      )
+      SELECT COALESCE(items_sum, 0) + COALESCE(delivery_total, 0) as total
+      FROM item_totals, delivery_sum
     `);
 
     // 2. Overall Service Revenue
@@ -143,6 +215,7 @@ export default class SalesRepositoryImpl {
            JOIN orderdetails od2 ON od2.orderid = o2.orderid
            WHERE (cp2.status = 'paid' OR o2.status IN ('delivered', 'completed'))
              AND TO_CHAR(cp2.updated_at, 'Mon YYYY') = TO_CHAR(m.month, 'Mon YYYY')
+             AND NOT EXISTS (SELECT 1 FROM product_returns pr WHERE pr.orderid = o2.orderid AND pr.productid = od2.productid AND pr.status != 'rejected')
           ), 0
         ) as product_sales,
         COALESCE(

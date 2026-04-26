@@ -2,7 +2,7 @@ import { pool } from "../../db/index.js";
 
 export default class CustomerPaymentOrderRepositoryImpl {
   /**
-   * Get ALL payment orders with nested orders + orderdetails + product/service info
+   * Get ALL payment orders with nested orders + orderdetails + product info
    */
   async getAllPaymentOrders() {
     const result = await pool.query(`
@@ -40,7 +40,6 @@ export default class CustomerPaymentOrderRepositoryImpl {
         od.quantity,
         od.unit_price,
         od.productid,
-        od.serviceid,
         p.prodname,
         p.prodcat,
         p.prodimage,
@@ -53,9 +52,7 @@ export default class CustomerPaymentOrderRepositoryImpl {
       LEFT JOIN customerpayment_orders cpo ON cpo.customerpaymentid = cp.customerpaymentid
       LEFT JOIN orders o ON o.orderid = cpo.orderid
       LEFT JOIN orderdetails od ON od.orderid = o.orderid
-
       LEFT JOIN products p ON p.productid = od.productid
-     
       ORDER BY cp.updated_at DESC, o.orderid ASC, od.orderdetailsid ASC
     `);
 
@@ -102,12 +99,9 @@ export default class CustomerPaymentOrderRepositoryImpl {
         od.quantity,
         od.unit_price,
         od.productid,
-        od.serviceid,
         p.prodname,
         p.prodcat,
         p.prodimage,
-        s.servicename,
-        s.price AS service_price,
         c.profileimage,
         u.email
       FROM customerpayment cp
@@ -117,7 +111,6 @@ export default class CustomerPaymentOrderRepositoryImpl {
       LEFT JOIN orders o ON o.orderid = cpo.orderid
       LEFT JOIN orderdetails od ON od.orderid = o.orderid
       LEFT JOIN products p ON p.productid = od.productid
-      LEFT JOIN service s ON s.serviceid = od.serviceid
       WHERE cp.customerpaymentid = $1
       ORDER BY o.orderid ASC, od.orderdetailsid ASC
     `,
@@ -168,12 +161,9 @@ export default class CustomerPaymentOrderRepositoryImpl {
         od.quantity,
         od.unit_price,
         od.productid,
-        od.serviceid,
         p.prodname,
         p.prodcat,
         p.prodimage,
-        s.servicename,
-        s.price AS service_price,
         c.profileimage,
         u.email
       FROM customerpayment cp
@@ -183,7 +173,6 @@ export default class CustomerPaymentOrderRepositoryImpl {
       LEFT JOIN orders o ON o.orderid = cpo.orderid
       LEFT JOIN orderdetails od ON od.orderid = o.orderid
       LEFT JOIN products p ON p.productid = od.productid
-      LEFT JOIN service s ON s.serviceid = od.serviceid
       WHERE cp.customerid = $1
       ORDER BY cp.updated_at DESC, o.orderid ASC, od.orderdetailsid ASC
     `,
@@ -233,12 +222,9 @@ export default class CustomerPaymentOrderRepositoryImpl {
         od.quantity,
         od.unit_price,
         od.productid,
-        od.serviceid,
         p.prodname,
         p.prodcat,
         p.prodimage,
-        s.servicename,
-        s.price AS service_price,
         c.profileimage,
         u.email
       FROM customerpayment cp
@@ -248,7 +234,6 @@ export default class CustomerPaymentOrderRepositoryImpl {
       LEFT JOIN orders o ON o.orderid = cpo.orderid
       LEFT JOIN orderdetails od ON od.orderid = o.orderid
       LEFT JOIN products p ON p.productid = od.productid
-      LEFT JOIN service s ON s.serviceid = od.serviceid
       WHERE cp.status = $1
       ORDER BY cp.updated_at DESC, o.orderid ASC, od.orderdetailsid ASC
     `,
@@ -427,13 +412,7 @@ export default class CustomerPaymentOrderRepositoryImpl {
                 prodimage: row.prodimage,
               }
               : null,
-            service: row.serviceid
-              ? {
-                serviceid: row.serviceid,
-                servicename: row.servicename,
-                price: row.service_price,
-              }
-              : null,
+            service: null,
           });
         }
       }

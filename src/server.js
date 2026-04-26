@@ -53,6 +53,9 @@ import CustomerPaymentOrderRepositoryImpl from "./infrastructure/repositories/Pa
 import CustomerProductPaymentRepositoryImpl from "./infrastructure/repositories/Payment/CustomerProductPaymentRepositoryImpl.js";
 import SyncTrackingStatus from "./application/usecases/Payment/SyncTrackingStatus.js";
 
+import AnnouncementRoutes from "./infrastructure/web/routes/AnnouncementRoutes.js";
+import AnnouncementRepositoryImpl from "./infrastructure/repositories/Admin/AnnouncementRepositoryImpl.js";
+
 const appointmentRepository = new AppointmentRepositoryImpl();
 const userRepository = new UserRepositoryImpl();
 const hashService = new BcryptService();
@@ -61,6 +64,7 @@ const staffRepository = new StaffRepositoryImpl();
 const productRepository = new ProductRepositoryImpl();
 const productAdjustmentsRepository = new ProductAdjustmentsRepositoryImpl();
 const purchaseOrderRepository = new PurchaseOrderRepositoryImpl();
+const announcementRepository = new AnnouncementRepositoryImpl();
 
 const queueRepository = new QueueRepositoryImpl();
 const reservationPaymentRepository = new ReservationPaymentRepositoryImpl();
@@ -107,6 +111,7 @@ app.use("/api/inventory", InventoryRoutes);
 app.use("/api/returns", ReturnRoutes);
 app.use("/api/reservation-payment", ReservationPaymentRoutes);
 app.use("/api/admin/customers", customerAdminRoutes);
+app.use("/api/announcements", AnnouncementRoutes(announcementRepository));
 
 app.use(
   "/api/uploads",

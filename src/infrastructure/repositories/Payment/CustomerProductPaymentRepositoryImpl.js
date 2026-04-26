@@ -163,7 +163,7 @@ export default class CustomerProductPaymentRepositoryImpl {
 
       // Update payment status
       await client.query(
-        `UPDATE customerpayment SET status='paid', updatedat=CURRENT_TIMESTAMP WHERE customerpaymentid=$1 AND customerid=$2`,
+        `UPDATE customerpayment SET status='paid', updated_at=CURRENT_TIMESTAMP WHERE customerpaymentid=$1 AND customerid=$2`,
         [customerpaymentid, customerid],
       );
 
