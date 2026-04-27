@@ -54,17 +54,22 @@ export default class QueueController {
     try {
       const { id } = req.params;
 
-      const allowedFields = ["status", "positionoverride", "notes", "isarrived"];
+      console.log("Full Request Body:", req.body);
+      const { status, positionoverride, notes, isarrived, staffid } = req.body;
       const payload = {};
 
-      for (const key of allowedFields) {
-        if (req.body[key] !== undefined) {
-          payload[key] = req.body[key];
-        }
-      }
+      if (status !== undefined) payload.status = status;
+      if (positionoverride !== undefined) payload.positionoverride = positionoverride;
+      if (notes !== undefined) payload.notes = notes;
+      if (isarrived !== undefined) payload.isarrived = isarrived;
+      if (staffid !== undefined) payload.staffid = staffid;
 
       if (Object.keys(payload).length === 0) {
-        return res.status(400).json({ message: "No valid fields to update" });
+        console.error("No valid fields found in body:", req.body);
+        return res.status(400).json({ 
+          message: "No valid fields to update",
+          receivedBody: req.body 
+        });
       }
 
       if (payload.status === "serving") {

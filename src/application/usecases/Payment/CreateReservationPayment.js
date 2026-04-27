@@ -121,8 +121,71 @@ export default class CreateReservationPayment {
       throw new Error("Payment not completed.");
     }
 
-    const payment = await this.repository.markPaidBySessionId(session_id);
+    // Extract payment_id
+    const payments = session.attributes.payments;
+    const paymentId = payments && payments.length > 0 ? payments[0].id : null;
+
+    const payment = await this.repository.markPaidBySessionId(session_id, paymentId);
     return payment;
+  }
+
+  /**
+   * Refund a reservation payment via PayMongo
+   */
+  async refundAppointmentPayment(appointmentid) {
+    const paymentRecord = await this.repository.getByAppointmentId(appointmentid);
+    if (!paymentRecord) {
+      console.log(`No payment record found for appointment ${appointmentid}, skipping auto-refund.`);
+      return null;
+    }
+
+    if (paymentRecord.status !== "paid") {
+      console.log(`Payment status for appointment ${appointmentid} is ${paymentRecord.status}, cannot refund.`);
+      return null;
+    }
+
+    const paymentId = paymentRecord.paymongo_payment_id;
+    if (!paymentId) {
+      console.log(`No PayMongo payment ID found for appointment ${appointmentid}. Manual refund may be required.`);
+      return null;
+    }
+
+    try {
+      console.log(`Initiating PayMongo refund for Payment ID: ${paymentId}`);
+      const refundAmount = Math.round(paymentRecord.reservation_fee * 100);
+
+      const response = await axios.post(
+        "https://api.paymongo.com/v1/refunds",
+        {
+          data: {
+            attributes: {
+              amount: refundAmount,
+              payment_id: paymentId,
+              reason: "requested_by_customer",
+              notes: `Refund for rejected appointment #${appointmentid}`
+            }
+          }
+        },
+        {
+          auth: {
+            username: this.PAYMONGO_SECRET,
+            password: ""
+          }
+        }
+      );
+
+      console.log("PayMongo Refund Response:", response.data);
+
+      // Update DB status to refunded
+      await this.repository.markRefundedByAppointmentId(appointmentid);
+
+      return response.data;
+    } catch (err) {
+      console.error("PayMongo Refund Error:", err.response?.data || err.message);
+      // Still mark as refunded in DB or handle error?
+      // For now, let's just log it.
+      throw new Error("PayMongo Refund failed: " + (err.response?.data?.errors?.[0]?.detail || err.message));
+    }
   }
 
   /**
@@ -214,8 +277,12 @@ export default class CreateReservationPayment {
     const sessionId = session.id;
     console.log("DEBUG: Processing PayMongo session ID:", sessionId);
 
+    // Extract payment ID from webhook data if available
+    const payments = session.attributes.payments;
+    const paymentId = payments && payments.length > 0 ? payments[0].id : null;
+
     // Check if it's a reservation fee payment
-    const reservationHandled = await this.repository.markPaidBySessionId(sessionId);
+    const reservationHandled = await this.repository.markPaidBySessionId(sessionId, paymentId);
     if (reservationHandled) {
       console.log("DEBUG: Successfully marked Reservation Payment as PAID for session:", sessionId);
       return true;

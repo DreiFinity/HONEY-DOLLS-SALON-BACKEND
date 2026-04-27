@@ -50,7 +50,7 @@ export default class QueueRepositoryImpl {
               branchid
             )
           VALUES
-            (CURRENT_DATE, $1, $2, $3, $4, 'appointment', 'waiting', $5, false, $6)
+            (CURRENT_DATE, $1, $2, $3, $4, 'appointment', 'waiting', CURRENT_TIMESTAMP, true, $5)
           RETURNING queueid
         `;
 
@@ -60,7 +60,6 @@ export default class QueueRepositoryImpl {
           apt.appointmentid,
           apt.staffid,
           customerName,
-          apt.starttime,
           apt.branchid,
         ]);
 
@@ -144,7 +143,7 @@ export default class QueueRepositoryImpl {
         INSERT INTO queue
           (queuedate, customerid, appointmentid, staffid, customername, source, status, arrivaltime, isarrived, branchid)
         VALUES
-          (DATE($1), $2, $3, $4, $5, 'appointment', 'waiting', $1, false, $6)
+          (DATE($1), $2, $3, $4, $5, 'appointment', 'waiting', CURRENT_TIMESTAMP, true, $6)
         RETURNING queueid
       `;
 
@@ -223,6 +222,7 @@ export default class QueueRepositoryImpl {
         q.createdat,
         q.updatedat,
         q.branchid,
+        a.starttime AS appointment_time,
         s.firstname AS staff_firstname,
         s.lastname AS staff_lastname,
         CASE 
@@ -249,6 +249,7 @@ export default class QueueRepositoryImpl {
         (q.appointmentid IS NOT NULL AND q.appointmentid = rp.appointmentid) OR
         (q.appointmentid IS NULL AND q.queueid = rp.queueid)
       )
+      LEFT JOIN appointment a ON q.appointmentid = a.appointmentid
       WHERE q.queuedate = CURRENT_DATE
         AND q.status IN ('waiting', 'serving')
         ${branchFilter}
@@ -271,6 +272,7 @@ export default class QueueRepositoryImpl {
         q.createdat,
         q.updatedat,
         q.branchid,
+        a.starttime,
         s.firstname,
         s.lastname,
         rp.checkout_url,
@@ -350,6 +352,7 @@ export default class QueueRepositoryImpl {
       q.isarrived,
       q.staffid,
       q.branchid,
+      a.starttime AS appointment_time,
       s.firstname AS staff_firstname,
       s.lastname AS staff_lastname,
       COALESCE(
@@ -365,8 +368,9 @@ export default class QueueRepositoryImpl {
     LEFT JOIN staff s ON q.staffid = s.staffid
     LEFT JOIN queueservice qs ON q.queueid = qs.queueid
     LEFT JOIN service sv ON qs.serviceid = sv.serviceid
+    LEFT JOIN appointment a ON q.appointmentid = a.appointmentid
     WHERE q.queuedate = CURRENT_DATE
-    GROUP BY q.queueid, q.branchid, s.firstname, s.lastname
+    GROUP BY q.queueid, q.branchid, s.firstname, s.lastname, a.starttime
     ORDER BY q.arrivaltime ASC
   `;
 
@@ -564,18 +568,59 @@ export default class QueueRepositoryImpl {
       // also mark appointment as completed
       if (
         updatedQueue &&
-        updatedQueue.appointmentid &&
-        data.status === "done"
+        updatedQueue.appointmentid
       ) {
-        await client.query(
-          `
-            UPDATE appointment
-            SET status = 'completed',
-                updatedat = CURRENT_TIMESTAMP
-            WHERE appointmentid = $1
-          `,
-          [updatedQueue.appointmentid]
+        if (data.status === "done") {
+          await client.query(
+            `
+              UPDATE appointment
+              SET status = 'completed',
+                  updatedat = CURRENT_TIMESTAMP
+              WHERE appointmentid = $1
+            `,
+            [updatedQueue.appointmentid]
+          );
+        }
+
+        // Also sync staffid if it was updated in the queue
+        if (data.staffid !== undefined) {
+          await client.query(
+            `
+              UPDATE appointment
+              SET staffid = $1,
+                  updatedat = CURRENT_TIMESTAMP
+              WHERE appointmentid = $2
+            `,
+            [data.staffid, updatedQueue.appointmentid]
+          );
+        }
+      }
+
+      // 🔥 AUTO-SUBSTITUTE LOGIC
+      // If a staff member completes a service, automatically start serving the next person in their queue
+      if (data.status === "done" && updatedQueue.staffid) {
+        const nextInQueueRes = await client.query(
+          `SELECT queueid FROM queue 
+           WHERE staffid = $1 
+             AND status = 'waiting' 
+             AND queuedate = CURRENT_DATE
+           ORDER BY arrivaltime ASC 
+           LIMIT 1`,
+          [updatedQueue.staffid]
         );
+
+        if (nextInQueueRes.rows.length > 0) {
+          const nextQueueId = nextInQueueRes.rows[0].queueid;
+          await client.query(
+            `UPDATE queue 
+             SET status = 'serving', 
+                 servicestartat = CURRENT_TIMESTAMP,
+                 updatedat = CURRENT_TIMESTAMP 
+             WHERE queueid = $1`,
+            [nextQueueId]
+          );
+          console.log(`DEBUG: Auto-substituted staff ${updatedQueue.staffid} to serve queue item ${nextQueueId}`);
+        }
       }
 
       await client.query("COMMIT");

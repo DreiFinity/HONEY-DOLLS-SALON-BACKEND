@@ -41,7 +41,17 @@ router.post("/confirm", auth, async (req, res) => {
   }
 });
 
-// ── Get reservation payment for a specific appointment ───────────
+// ── Get ALL reservation payments for a specific appointment ───────
+router.get("/appointment/:appointmentid/all", auth, async (req, res) => {
+  try {
+    const payments = await repository.getPaymentsByAppointmentId(req.params.appointmentid);
+    res.json({ success: true, data: payments });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+// ── Get reservation payment for a specific appointment (single) ───
 router.get("/appointment/:appointmentid", auth, async (req, res) => {
   try {
     const payment = await repository.getByAppointmentId(req.params.appointmentid);

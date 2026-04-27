@@ -2,6 +2,7 @@ import CreateAppointment from "../../../application/usecases/Appointment/CreateA
 import UpdateAppointment from "../../../application/usecases/Appointment/UpdateAppointment.js";
 import DeleteAppointment from "../../../application/usecases/Appointment/DeleteAppointment.js";
 import GetAppointments from "../../../application/usecases/Appointment/GetAppointments.js";
+import CreateReservationPayment from "../../../application/usecases/Payment/CreateReservationPayment.js";
 
 export default class AppointmentController {
   constructor(appointmentRepository, queueRepository, reservationPaymentRepository) {
@@ -12,6 +13,7 @@ export default class AppointmentController {
     this.updateUsecase = new UpdateAppointment(appointmentRepository);
     this.deleteUsecase = new DeleteAppointment(appointmentRepository);
     this.getUsecase = new GetAppointments(appointmentRepository);
+    this.refundUsecase = new CreateReservationPayment(reservationPaymentRepository);
   }
 
   async create(req, res) {
@@ -62,6 +64,18 @@ export default class AppointmentController {
         req.params.id,
         req.body
       );
+
+      // Handle Refund if triggered
+      if (req.body.triggerRefund && this.refundUsecase) {
+        try {
+          console.log(`DEBUG: Triggering automated PayMongo refund for appointment: ${req.params.id}`);
+          await this.refundUsecase.refundAppointmentPayment(req.params.id);
+        } catch (refundErr) {
+          console.error("Failed to process automated refund:", refundErr.message);
+          // We don't throw here to avoid failing the whole update if refund fails
+          // but we already logged it.
+        }
+      }
 
       // If the appointment was confirmed, sync it to the queue
       console.log(`DEBUG: AppointmentController update - Status: ${req.body.status}, QueueRepo: ${!!this.queueRepository}`);

@@ -9,8 +9,8 @@ export default class ReservationPaymentRepositoryImpl {
     const result = await db.query(
       `INSERT INTO reservationpayment
         (appointmentid, queueid, customerid, reference_code, method, status, currency,
-         reservation_fee, checkout_url, paymongo_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         reservation_fee, checkout_url, paymongo_id, paymongo_payment_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING *`,
       [
         data.appointmentid || null,
@@ -23,6 +23,7 @@ export default class ReservationPaymentRepositoryImpl {
         data.reservation_fee,
         data.checkout_url || null,
         data.paymongo_id || null,
+        data.paymongo_payment_id || null,
       ]
     );
     return result.rows[0];
@@ -31,7 +32,7 @@ export default class ReservationPaymentRepositoryImpl {
   /**
    * Mark reservation payment as paid by PayMongo session ID
    */
-  async markPaidBySessionId(sessionId) {
+  async markPaidBySessionId(sessionId, paymentId = null) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -71,9 +72,10 @@ export default class ReservationPaymentRepositoryImpl {
       // 2. Mark payment as paid
       await client.query(
         `UPDATE reservationpayment 
-         SET status = 'paid', paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         SET status = 'paid', paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
+             paymongo_payment_id = COALESCE($2, paymongo_payment_id)
          WHERE reservationpaymentid = $1`,
-        [payment.reservationpaymentid]
+        [payment.reservationpaymentid, paymentId]
       );
 
       // 3. Update appointment status if it exists
@@ -112,9 +114,9 @@ export default class ReservationPaymentRepositoryImpl {
   }
 
   /**
-   * Get reservation payment by appointment ID
+   * Get all reservation payments for an appointment ID
    */
-  async getByAppointmentId(appointmentid) {
+  async getPaymentsByAppointmentId(appointmentid) {
     const result = await pool.query(
       `SELECT rp.*,
               COALESCE(totals.total_service_cost, 0) AS total_amount,
@@ -126,10 +128,19 @@ export default class ReservationPaymentRepositoryImpl {
            JOIN service sv ON sv.serviceid = aps.serviceid
            GROUP BY aps.appointmentid
        ) totals ON totals.appointmentid = rp.appointmentid
-       WHERE rp.appointmentid = $1`,
+       WHERE rp.appointmentid = $1
+       ORDER BY rp.created_at DESC`,
       [appointmentid]
     );
-    return result.rows[0] || null;
+    return result.rows;
+  }
+
+  /**
+   * Get reservation payment by appointment ID (single)
+   */
+  async getByAppointmentId(appointmentid) {
+    const payments = await this.getPaymentsByAppointmentId(appointmentid);
+    return payments[0] || null;
   }
 
   /**
@@ -456,5 +467,18 @@ export default class ReservationPaymentRepositoryImpl {
     } finally {
       client.release();
     }
+  }
+  /**
+   * Mark reservation as refunded (staff/admin)
+   */
+  async markRefundedByAppointmentId(appointmentid) {
+    const result = await pool.query(
+      `UPDATE reservationpayment 
+       SET status = 'refunded', updated_at = CURRENT_TIMESTAMP
+       WHERE appointmentid = $1
+       RETURNING *`,
+      [appointmentid]
+    );
+    return result.rows[0];
   }
 }
