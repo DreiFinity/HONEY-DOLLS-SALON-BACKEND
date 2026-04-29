@@ -203,6 +203,7 @@ export default class ReservationPaymentRepositoryImpl {
               u.email AS customer_email,
               COALESCE(s.firstname, qs_staff.firstname) AS staff_firstname, 
               COALESCE(s.lastname, qs_staff.lastname) AS staff_lastname,
+              b.branchname AS branch_name,
               COALESCE(apt_totals.total_service_cost, q_totals.total_service_cost, 0) AS total_amount,
               CASE 
                 WHEN rp.appointmentid IS NOT NULL THEN (COALESCE(apt_totals.total_service_cost, 0) - rp.reservation_fee)
@@ -216,6 +217,7 @@ export default class ReservationPaymentRepositoryImpl {
        LEFT JOIN users u ON u.userid = c.userid
        LEFT JOIN staff s ON s.staffid = a.staffid
        LEFT JOIN staff qs_staff ON qs_staff.staffid = q.staffid
+       LEFT JOIN branch b ON b.branchid = COALESCE(s.branchid, qs_staff.branchid)
        LEFT JOIN (
            SELECT aps.appointmentid, 
                   SUM(sv.amount) AS total_service_cost,
