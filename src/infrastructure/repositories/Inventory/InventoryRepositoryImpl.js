@@ -38,7 +38,7 @@ export default class InventoryRepositoryImpl {
           productid,
           SUM(quantity) as total_transfer_in
         FROM product_transfers
-        WHERE to_branchid = $1::INTEGER
+        WHERE to_branchid = $1::INTEGER AND status = 'ARRIVED'
         GROUP BY productid
       ),
       TransfersOut AS (
