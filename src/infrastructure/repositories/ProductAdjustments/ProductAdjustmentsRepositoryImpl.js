@@ -21,13 +21,16 @@ export default class ProductAdjustmentsRepositoryImpl {
         pa.quantity,
         pa.reason,
         pa.remarks,
-        pa.datetime
+        pa.datetime,
+        pa.branchid,
+        b.branchname
       FROM product_adjustments pa
       LEFT JOIN products  p ON pa.productid = p.productid
       LEFT JOIN users     u ON pa.userid    = u.userid
       LEFT JOIN staff     s ON s.userid     = u.userid
       LEFT JOIN admin     a ON a.userid     = u.userid
       LEFT JOIN customers c ON c.userid     = u.userid
+      LEFT JOIN branch    b ON pa.branchid  = b.branchid
       ORDER BY pa.datetime DESC
     `;
     const result = await pool.query(query);
@@ -35,13 +38,13 @@ export default class ProductAdjustmentsRepositoryImpl {
   }
 
   // ─── WASTE ──────────────────────────────────────────────────────────────────
-  async createWaste({ productid, userid, reason, remarks }) {
+  async createWaste({ productid, userid, reason, remarks, branchid }) {
     const query = `
-      INSERT INTO product_adjustments (type, productid, userid, reason, remarks, datetime)
-      VALUES ('Waste', $1, $2, $3, $4, NOW())
+      INSERT INTO product_adjustments (type, productid, userid, reason, remarks, branchid, datetime)
+      VALUES ('Waste', $1, $2, $3, $4, $5, NOW())
       RETURNING adjustmentid AS wasteid, *
     `;
-    const result = await pool.query(query, [productid, userid, reason, remarks]);
+    const result = await pool.query(query, [productid, userid, reason, remarks, branchid]);
     return result.rows[0];
   }
 
@@ -51,13 +54,13 @@ export default class ProductAdjustmentsRepositoryImpl {
   }
 
   // ─── USAGE ──────────────────────────────────────────────────────────────────
-  async createUsage({ productid, userid, quantity, reason, remarks }) {
+  async createUsage({ productid, userid, quantity, reason, remarks, branchid }) {
     const query = `
-      INSERT INTO product_adjustments (type, productid, userid, quantity, reason, remarks, datetime)
-      VALUES ('Usage', $1, $2, $3, $4, $5, NOW())
+      INSERT INTO product_adjustments (type, productid, userid, quantity, reason, remarks, branchid, datetime)
+      VALUES ('Usage', $1, $2, $3, $4, $5, $6, NOW())
       RETURNING adjustmentid AS usageid, *
     `;
-    const result = await pool.query(query, [productid, userid, quantity, reason, remarks]);
+    const result = await pool.query(query, [productid, userid, quantity, reason, remarks, branchid]);
     return result.rows[0];
   }
 
@@ -67,13 +70,13 @@ export default class ProductAdjustmentsRepositoryImpl {
   }
 
   // ─── DAMAGE ─────────────────────────────────────────────────────────────────
-  async createDamage({ productid, userid, reason, remarks }) {
+  async createDamage({ productid, userid, reason, remarks, branchid }) {
     const query = `
-      INSERT INTO product_adjustments (type, productid, userid, reason, remarks, datetime)
-      VALUES ('Damage', $1, $2, $3, $4, NOW())
+      INSERT INTO product_adjustments (type, productid, userid, reason, remarks, branchid, datetime)
+      VALUES ('Damage', $1, $2, $3, $4, $5, NOW())
       RETURNING adjustmentid AS damageid, *
     `;
-    const result = await pool.query(query, [productid, userid, reason, remarks]);
+    const result = await pool.query(query, [productid, userid, reason, remarks, branchid]);
     return result.rows[0];
   }
 

@@ -48,13 +48,21 @@ export default class InventoryRepositoryImpl {
         FROM product_transfers
         WHERE from_branchid = $1::INTEGER
         GROUP BY productid
+      ),
+      Adjustments AS (
+        SELECT 
+          productid,
+          SUM(COALESCE(quantity, 1)) as total_adjustment
+        FROM product_adjustments
+        WHERE branchid = $1::INTEGER
+        GROUP BY productid
       )
       SELECT 
         p.productid,
         p.prodname as name,
         p.price,
         p.prodcat as category,
-        (COALESCE(a.total_in, 0) - COALESCE(f.total_out, 0) + COALESCE(r.total_returned, 0) + COALESCE(ti.total_transfer_in, 0) - COALESCE(tout.total_transfer_out, 0)) as stock,
+        (COALESCE(a.total_in, 0) - COALESCE(f.total_out, 0) + COALESCE(r.total_returned, 0) + COALESCE(ti.total_transfer_in, 0) - COALESCE(tout.total_transfer_out, 0) - COALESCE(adj.total_adjustment, 0)) as stock,
         CURRENT_TIMESTAMP as updated
       FROM products p
       LEFT JOIN Arrivals a ON p.productid = a.productid
@@ -62,6 +70,7 @@ export default class InventoryRepositoryImpl {
       LEFT JOIN Returns r ON p.productid = r.productid
       LEFT JOIN TransfersIn ti ON p.productid = ti.productid
       LEFT JOIN TransfersOut tout ON p.productid = tout.productid
+      LEFT JOIN Adjustments adj ON p.productid = adj.productid
       ORDER BY p.prodname ASC;
     `;
     try {
@@ -102,18 +111,26 @@ export default class InventoryRepositoryImpl {
         FROM product_returns r
         WHERE r.status = 'completed'
         GROUP BY r.productid
+      ),
+      Adjustments AS (
+        SELECT 
+          productid,
+          SUM(COALESCE(quantity, 1)) as total_adjustment
+        FROM product_adjustments
+        GROUP BY productid
       )
       SELECT 
         p.productid,
         p.prodname as name,
         p.price,
         p.prodcat as category,
-        (COALESCE(a.total_in, 0) - COALESCE(f.total_out, 0) + COALESCE(r.total_returned, 0)) as stock,
+        (COALESCE(a.total_in, 0) - COALESCE(f.total_out, 0) + COALESCE(r.total_returned, 0) - COALESCE(adj.total_adjustment, 0)) as stock,
         CURRENT_TIMESTAMP as updated
       FROM products p
       LEFT JOIN Arrivals a ON p.productid = a.productid
       LEFT JOIN Fulfillments f ON p.productid = f.productid
       LEFT JOIN Returns r ON p.productid = r.productid
+      LEFT JOIN Adjustments adj ON p.productid = adj.productid
       ORDER BY p.prodname ASC;
     `;
     const { rows } = await pool.query(query);

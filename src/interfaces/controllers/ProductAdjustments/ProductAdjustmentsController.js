@@ -18,11 +18,11 @@ export default class ProductAdjustmentsController {
   // POST /api/product-adjustments/waste
   async createWaste(req, res) {
     try {
-      const { productid, userid, reason, remarks } = req.body;
+      const { productid, userid, reason, remarks, branchid } = req.body;
       if (!productid || !userid || !reason) {
         return res.status(400).json({ message: "productid, userid, and reason are required." });
       }
-      const record = await this.repo.createWaste({ productid, userid, reason, remarks });
+      const record = await this.repo.createWaste({ productid, userid, reason, remarks, branchid });
       return res.status(201).json({ message: "Waste record created.", record });
     } catch (err) {
       console.error(err);
@@ -44,7 +44,7 @@ export default class ProductAdjustmentsController {
   // POST /api/product-adjustments/usage
   async createUsage(req, res) {
     try {
-      const { productid, userid, quantity, reason, remarks } = req.body;
+      const { productid, userid, quantity, reason, remarks, branchid } = req.body;
       if (!productid || !userid || !quantity) {
         return res.status(400).json({ message: "productid, userid, and quantity are required." });
       }
@@ -54,6 +54,7 @@ export default class ProductAdjustmentsController {
         quantity: parseInt(quantity),
         reason,
         remarks,
+        branchid
       });
       return res.status(201).json({ message: "Usage record created.", record });
     } catch (err) {
@@ -76,11 +77,11 @@ export default class ProductAdjustmentsController {
   // POST /api/product-adjustments/damage
   async createDamage(req, res) {
     try {
-      const { productid, userid, reason, remarks } = req.body;
+      const { productid, userid, reason, remarks, branchid } = req.body;
       if (!productid || !userid || !reason) {
         return res.status(400).json({ message: "productid, userid, and reason are required." });
       }
-      const record = await this.repo.createDamage({ productid, userid, reason, remarks });
+      const record = await this.repo.createDamage({ productid, userid, reason, remarks, branchid });
       return res.status(201).json({ message: "Damage record created.", record });
     } catch (err) {
       console.error(err);
