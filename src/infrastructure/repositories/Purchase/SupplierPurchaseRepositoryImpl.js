@@ -1,5 +1,12 @@
-import { pool } from "../../db/index.js";
+const generateReferenceCode = () => {
+  const timestamp = Date.now().toString();
+  const random = Math.random().toString(36).substring(2, 7).toUpperCase();
+  return `REF-${timestamp}-${random}`;
+};
+
+
 import SupplierPurchaseRepository from "../../../domain/repositories/Purchase/SupplierPurchaseRepository.js";
+import { pool } from "../../db/index.js";
 
 export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepository {
   async create(purchaseData, items) {
@@ -10,11 +17,11 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
       // 1. Insert Master: supplierpurchase
       // Note: We use 'PENDING' as default status in code if not specified
       const orderQuery = `
-        INSERT INTO supplierpurchase (supplierid, status, branchid)
-        VALUES ($1, $2, $3)
+        INSERT INTO supplierpurchase (supplierid, status, branchid, reference_code)
+        VALUES ($1, $2, $3, $4)
         RETURNING *;
       `;
-      const orderValues = [purchaseData.supplierid, purchaseData.status || "PENDING", purchaseData.branchid];
+      const orderValues = [purchaseData.supplierid, purchaseData.status || "PENDING", purchaseData.branchid, purchaseData.reference_code || generateReferenceCode()];
       const orderResult = await client.query(orderQuery, orderValues);
       const purchase = orderResult.rows[0];
 
@@ -43,7 +50,7 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
 
   async findAll() {
     const query = `
-      SELECT sp.*, s.suppliername, b.branchname
+      SELECT sp.*, s.suppliername, b.branchname, sp.reference_code
       FROM supplierpurchase sp
       JOIN supplier s ON sp.supplierid = s.supplierid
       LEFT JOIN branch b ON sp.branchid = b.branchid
@@ -56,7 +63,7 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
   async findById(purchaseid) {
     // Get master
     const orderQuery = `
-      SELECT sp.*, s.suppliername, b.branchname
+      SELECT sp.*, s.suppliername, b.branchname, sp.reference_code
       FROM supplierpurchase sp
       JOIN supplier s ON sp.supplierid = s.supplierid
       LEFT JOIN branch b ON sp.branchid = b.branchid
@@ -206,6 +213,8 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
         spay.createdat as payment_date,
         spay.checkout_url,
         spur.status as order_status,
+        spur.branchid,
+        spur.reference_code,
         s.suppliername,
         b.branchname,
         (

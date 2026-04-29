@@ -25,14 +25,14 @@ export default class CreateSupplierPayment {
               amount: Math.round(amount * 100), // convert to cents
               currency: "PHP",
               description: `Payment for Purchase #${purchaseid}`,
-              name: `PO-Payment-${purchaseid}`,
+              name: `PO-Payment-${purchase.reference_code || purchaseid}`,
               quantity: 1,
             },
           ],
           payment_method_types: method === "GCASH" ? ["gcash"] : ["card"],
           success_url: `${this.FRONTEND_URL}/supplierPurRecord`,
           cancel_url: `${this.FRONTEND_URL}/supplierPurchases`,
-          description: `Supplier payment for Purchase ID: ${purchaseid}`,
+          description: `Supplier payment for Reference: ${purchase.reference_code || purchaseid}`,
         },
       },
     };
