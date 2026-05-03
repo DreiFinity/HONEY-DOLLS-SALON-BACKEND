@@ -15,8 +15,14 @@ export default class CreateReservationPayment {
 
     // 1. Check if payment already exists for this appointment
     const existing = await this.repository.getByAppointmentId(appointmentid);
-    if (existing && existing.status === "paid") {
-      throw new Error("Reservation fee already paid for this appointment");
+    if (existing) {
+      if (existing.status === "paid") {
+        throw new Error("Reservation fee already paid for this appointment");
+      }
+      if (existing.status === "pending" && existing.checkout_url) {
+        // Return the existing pending session instead of creating a new one
+        return existing;
+      }
     }
 
     // 2. If no customerid passed, get it from appointment
@@ -73,8 +79,8 @@ export default class CreateReservationPayment {
             },
             line_items: [lineItem],
             payment_method_types: ["gcash"],
-            success_url: `${config.frontendUrl}/custapp?payment=success&appointment=${appointmentid}`,
-            cancel_url: `${config.frontendUrl}/custapp?payment=cancelled&appointment=${appointmentid}`,
+            success_url: `${config.frontendUrl}/myAppointment?payment=success&appointment=${appointmentid}`,
+            cancel_url: `${config.frontendUrl}/myAppointment?payment=cancelled&appointment=${appointmentid}`,
           },
         },
       },

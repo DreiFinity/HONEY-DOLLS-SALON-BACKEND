@@ -66,9 +66,9 @@ export default class QueueController {
 
       if (Object.keys(payload).length === 0) {
         console.error("No valid fields found in body:", req.body);
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "No valid fields to update",
-          receivedBody: req.body 
+          receivedBody: req.body
         });
       }
 
@@ -77,7 +77,7 @@ export default class QueueController {
         payload.servicestartat = new Date();
       }
 
-      if (payload.status === "done") {
+      if (payload.status === "pending_payment") {
         payload.serviceendat = new Date();
       }
 

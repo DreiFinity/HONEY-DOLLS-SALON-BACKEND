@@ -251,7 +251,7 @@ export default class QueueRepositoryImpl {
       )
       LEFT JOIN appointment a ON q.appointmentid = a.appointmentid
       WHERE q.queuedate = CURRENT_DATE
-        AND q.status IN ('waiting', 'serving')
+        AND q.status IN ('waiting', 'serving', 'pending_payment')
         ${branchFilter}
       GROUP BY
         q.queueid,
@@ -596,32 +596,10 @@ export default class QueueRepositoryImpl {
         }
       }
 
-      // 🔥 AUTO-SUBSTITUTE LOGIC
-      // If a staff member completes a service, automatically start serving the next person in their queue
-      if (data.status === "done" && updatedQueue.staffid) {
-        const nextInQueueRes = await client.query(
-          `SELECT queueid FROM queue 
-           WHERE staffid = $1 
-             AND status = 'waiting' 
-             AND queuedate = CURRENT_DATE
-           ORDER BY arrivaltime ASC 
-           LIMIT 1`,
-          [updatedQueue.staffid]
-        );
-
-        if (nextInQueueRes.rows.length > 0) {
-          const nextQueueId = nextInQueueRes.rows[0].queueid;
-          await client.query(
-            `UPDATE queue 
-             SET status = 'serving', 
-                 servicestartat = CURRENT_TIMESTAMP,
-                 updatedat = CURRENT_TIMESTAMP 
-             WHERE queueid = $1`,
-            [nextQueueId]
-          );
-          console.log(`DEBUG: Auto-substituted staff ${updatedQueue.staffid} to serve queue item ${nextQueueId}`);
-        }
-      }
+      // AUTO-SUBSTITUTE LOGIC — DISABLED
+      // Staff must manually start serving the next customer via the SERVE button.
+      // This allows staff to take breaks between services.
+      // if (data.status === "pending_payment" && updatedQueue.staffid) { ... }
 
       await client.query("COMMIT");
       return updatedQueue;

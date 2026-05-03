@@ -114,7 +114,7 @@ export default class AppointmentController {
         );
         filters.customerid = customerid;
       } else if (req.user.role === "staff") {
-        // If staff is a RECEPTIONIST, they should see all appointments (to assign them)
+        // If staff is a RECEPTIONIST or MANAGER, they should see all appointments
         const specs = req.user.specializations;
         isReceptionist = !!(specs && (
           (Array.isArray(specs) && specs.some(s =>
@@ -127,7 +127,16 @@ export default class AppointmentController {
           ))
         ));
 
-        if (isReceptionist) {
+        const isManager = !!(specs && (
+          (Array.isArray(specs) && specs.some(s =>
+            s.toLowerCase().includes("manager")
+          )) ||
+          (typeof specs === "string" &&
+            specs.toLowerCase().includes("manager")
+          )
+        ));
+
+        if (isReceptionist || isManager) {
           filters = {};
           if (req.query.staffid && req.query.staffid !== "null") filters.staffid = req.query.staffid;
           if (req.query.customerid && req.query.customerid !== "null") filters.customerid = req.query.customerid;

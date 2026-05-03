@@ -249,6 +249,13 @@ export class AppointmentRepositoryImpl {
              OR (r.appointmentid IS NULL AND queueid = r.queueid)
           ORDER BY created_at DESC LIMIT 1
         ) AS payment_status,
+        (
+          SELECT method
+          FROM reservationpayment
+          WHERE (r.appointmentid IS NOT NULL AND appointmentid = r.appointmentid)
+             OR (r.appointmentid IS NULL AND queueid = r.queueid)
+          ORDER BY created_at DESC LIMIT 1
+        ) AS payment_method,
         -- Balance Amount
         CASE 
           WHEN r.source = 'walkin' THEN 0

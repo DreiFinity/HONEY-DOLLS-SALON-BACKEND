@@ -44,8 +44,26 @@ export default class CreateAppointment {
     const reservationFee = Math.ceil(totalServiceAmount * 0.25);
     const reference_code = "RES-" + Math.floor(100000 + Math.random() * 900000);
 
-    // 2. Create PayMongo Session FIRST (External API)
-    // We do this before the DB transaction so we don't hold a DB lock during a slow API call
+    // 2. Create Appointment in Database FIRST
+    let appointment;
+    try {
+      appointment = await this.appointmentRepository.createAppointment({
+        customerid: customerId,
+        starttime,
+        endtime,
+        staffid,
+        notes,
+        priority,
+        status,
+        services,
+        branchid,
+      });
+    } catch (dbErr) {
+      console.error("Database Error creating appointment:", dbErr.message);
+      throw new Error("Critical error saving appointment. Please contact support.");
+    }
+
+    // 3. Create PayMongo Session (External API)
     const serviceNames = services.map((s) => s.servicename || "Service").join(", ");
     const lineItem = {
       name: `Reservation Fee — ${serviceNames}`,
@@ -69,8 +87,8 @@ export default class CreateAppointment {
               },
               line_items: [lineItem],
               payment_method_types: ["gcash"],
-              success_url: `${config.frontendUrl}/custapp?payment=success`,
-              cancel_url: `${config.frontendUrl}/custapp?payment=cancelled`,
+              success_url: `${config.frontendUrl}/myAppointment?payment=success&appointment=${appointment.appointmentid}`,
+              cancel_url: `${config.frontendUrl}/myAppointment?payment=cancelled&appointment=${appointment.appointmentid}`,
             },
           },
         },
@@ -82,27 +100,15 @@ export default class CreateAppointment {
       paymongo_id = response.data.data.id;
     } catch (err) {
       console.error("PayMongo Error:", err.response?.data || err.message);
-      throw new Error("Failed to initiate payment session with PayMongo.");
+      // Even if PayMongo fails, the appointment is created (status pending). 
+      // They can pay later via "Pay Deposit" button.
+      throw new Error("Failed to initiate payment session with PayMongo, but appointment was saved.");
     }
 
-    // 3. Save both to Database (The "At the Same Time" part)
-    // We will use the existing repository methods which handle their own internal transactions
+    // 4. Create Payment record linked to the new appointment
+    let payment;
     try {
-      // Create Appointment
-      const appointment = await this.appointmentRepository.createAppointment({
-        customerid: customerId,
-        starttime,
-        endtime,
-        staffid,
-        notes,
-        priority,
-        status,
-        services,
-        branchid,
-      });
-
-      // Create Payment record linked to the new appointment
-      const payment = await this.reservationPaymentRepository.createReservationPayment({
+      payment = await this.reservationPaymentRepository.createReservationPayment({
         appointmentid: appointment.appointmentid,
         customerid: customerId,
         reference_code,
@@ -113,15 +119,15 @@ export default class CreateAppointment {
         checkout_url,
         paymongo_id,
       });
+    } catch (dbErr) {
+      console.error("Database Error saving payment record:", dbErr.message);
+      // Again, appointment is already created.
+    }
 
       return {
         appointment,
         payment,
         checkout_url,
       };
-    } catch (dbErr) {
-      console.error("Database Error in Unified Flow:", dbErr.message);
-      throw new Error("Critical error saving appointment. Please contact support.");
-    }
   }
 }

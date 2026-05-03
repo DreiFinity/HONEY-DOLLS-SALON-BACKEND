@@ -41,6 +41,24 @@ router.post("/confirm", auth, async (req, res) => {
   }
 });
 
+// ── Verify payment by appointment ID ─────────────────────────────
+router.post("/verify-by-appointment", auth, async (req, res) => {
+  try {
+    const { appointmentid } = req.body;
+    const paymentRecord = await repository.getByAppointmentId(appointmentid);
+    
+    if (!paymentRecord || !paymentRecord.paymongo_id) {
+      return res.json({ success: false, message: "No payment session found" });
+    }
+    
+    const payment = await createReservationPayment.confirmPayment(paymentRecord.paymongo_id);
+    res.json({ success: true, data: payment });
+  } catch (err) {
+    // Return 200 so the frontend doesn't throw a hard error, but success: false
+    res.status(200).json({ success: false, message: err.message });
+  }
+});
+
 // ── Get ALL reservation payments for a specific appointment ───────
 router.get("/appointment/:appointmentid/all", auth, async (req, res) => {
   try {
