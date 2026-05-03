@@ -115,7 +115,7 @@ app.use("/api/announcements", AnnouncementRoutes(announcementRepository));
 
 app.use(
   "/api/uploads",
-  express.static("C:\\NAGBA_ANDREI\\salon\\upload")
+  express.static("C:\\SALON\\salon_backend\\upload")
 );
 
 
