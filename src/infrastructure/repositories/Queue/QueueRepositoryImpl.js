@@ -230,6 +230,8 @@ export default class QueueRepositoryImpl {
           ELSE rp.balance_checkout_url 
         END AS balance_checkout_url,
         rp.status AS payment_status,
+        rp.reservation_fee,
+        rp.balance_status,
         COALESCE(
           JSON_AGG(
             DISTINCT JSONB_BUILD_OBJECT(
@@ -277,7 +279,9 @@ export default class QueueRepositoryImpl {
         s.lastname,
         rp.checkout_url,
         rp.balance_checkout_url,
-        rp.status
+        rp.status,
+        rp.reservation_fee,
+        rp.balance_status
       ORDER BY
         CASE WHEN q.isarrived = true THEN 0 ELSE 1 END,
         q.arrivaltime ASC
@@ -566,33 +570,63 @@ export default class QueueRepositoryImpl {
 
       // 🔥 If this queue row came from an appointment and queue is done,
       // also mark appointment as completed
-      if (
-        updatedQueue &&
-        updatedQueue.appointmentid
-      ) {
+      if (updatedQueue && updatedQueue.appointmentid) {
         if (data.status === "done") {
           await client.query(
-            `
-              UPDATE appointment
-              SET status = 'completed',
-                  updatedat = CURRENT_TIMESTAMP
-              WHERE appointmentid = $1
-            `,
+            `UPDATE appointment SET status = 'completed', updatedat = CURRENT_TIMESTAMP WHERE appointmentid = $1`,
             [updatedQueue.appointmentid]
           );
+
+          // Settlement Logic: If transitioning to done, ensure payment is marked as paid
+          const paymentRes = await client.query(
+            `SELECT * FROM reservationpayment WHERE appointmentid = $1`,
+            [updatedQueue.appointmentid]
+          );
+          if (paymentRes.rows.length > 0) {
+            const payment = paymentRes.rows[0];
+            if (payment.status !== 'paid' || payment.balance_status !== 'paid') {
+              await client.query(
+                `UPDATE reservationpayment 
+                 SET status = 'paid', 
+                     balance_status = 'paid',
+                     method = CASE WHEN method = 'gcash' AND status != 'paid' THEN 'cash' ELSE method END,
+                     balance_method = CASE WHEN (balance_method = 'gcash' OR balance_method IS NULL) AND balance_status != 'paid' THEN 'cash' ELSE balance_method END,
+                     paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP),
+                     balance_paid_at = COALESCE(balance_paid_at, CURRENT_TIMESTAMP),
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE reservationpaymentid = $1`,
+                [payment.reservationpaymentid]
+              );
+            }
+          }
         }
 
         // Also sync staffid if it was updated in the queue
         if (data.staffid !== undefined) {
           await client.query(
-            `
-              UPDATE appointment
-              SET staffid = $1,
-                  updatedat = CURRENT_TIMESTAMP
-              WHERE appointmentid = $2
-            `,
+            `UPDATE appointment SET staffid = $1, updatedat = CURRENT_TIMESTAMP WHERE appointmentid = $2`,
             [data.staffid, updatedQueue.appointmentid]
           );
+        }
+      } else if (updatedQueue && !updatedQueue.appointmentid && data.status === "done") {
+        // Walk-in Settlement Logic
+        const paymentRes = await client.query(
+          `SELECT * FROM reservationpayment WHERE queueid = $1`,
+          [updatedQueue.queueid]
+        );
+        if (paymentRes.rows.length > 0) {
+          const payment = paymentRes.rows[0];
+          if (payment.status !== 'paid') {
+            await client.query(
+              `UPDATE reservationpayment 
+               SET status = 'paid', 
+                   method = CASE WHEN method = 'gcash' THEN 'cash' ELSE method END,
+                   paid_at = CURRENT_TIMESTAMP,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE reservationpaymentid = $1`,
+              [payment.reservationpaymentid]
+            );
+          }
         }
       }
 

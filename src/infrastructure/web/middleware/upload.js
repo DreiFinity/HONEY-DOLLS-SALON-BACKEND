@@ -3,7 +3,7 @@ import path from "path";
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join("C:\\SALON\\salon_backend\\upload")); // <- use your folder
+    cb(null, path.join(process.cwd(), "upload"));
   },
   filename: (req, file, cb) => {
     cb(null, Date.now() + "-" + file.originalname);

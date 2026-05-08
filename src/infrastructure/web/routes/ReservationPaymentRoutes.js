@@ -90,13 +90,16 @@ router.get("/my-payments", auth, async (req, res) => {
   }
 });
 
-// ── Create balance payment for 75% (staff/admin) ─────────────────
+// ── Create balance payment for 75% or Walk-in (staff/admin) ─────────────────
 router.post("/create-balance", auth, async (req, res) => {
   try {
-    const { appointmentid } = req.body;
-    if (!appointmentid) throw new Error("appointmentid is required");
+    const { appointmentid, queueid } = req.body;
+    if (!appointmentid && !queueid) throw new Error("appointmentid or queueid is required");
 
-    const payment = await createReservationPayment.createBalanceCheckout(appointmentid);
+    const payment = await createReservationPayment.createBalanceCheckout({ 
+      appointmentid, 
+      queueid 
+    });
 
     res.json({
       success: true,

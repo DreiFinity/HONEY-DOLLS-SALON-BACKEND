@@ -196,40 +196,52 @@ export default class CreateReservationPayment {
 
   /**
    * Handle PayMongo webhook for reservation payments
+   */  /**
+   * Create a checkout session for the remaining balance or walk-in full payment
    */
-  /**
-   * Create a checkout session for the remaining 75% balance
-   */
-  async createBalanceCheckout(appointmentid) {
-    // 1. Get the existing payment record
-    const payment = await this.repository.getByAppointmentId(appointmentid);
-    if (!payment) throw new Error("Reservation payment record not found");
-
-    // 2. Get services to calculate total
-    const services = await this.repository.getAppointmentServices(appointmentid);
-    const totalAmount = services.reduce(
-      (sum, s) => sum + Number(s.price || 0),
-      0
-    );
-
-    // 3. Calculate balance (Total - Reservation Fee)
-    const balanceAmount = totalAmount - Number(payment.reservation_fee);
-
-    if (balanceAmount <= 0) {
-      throw new Error("No balance remaining for this appointment.");
+  async createBalanceCheckout({ appointmentid, queueid }) {
+    // 1. Find the existing payment record
+    let payment;
+    if (appointmentid) {
+      payment = await this.repository.getByAppointmentId(appointmentid);
+    } else if (queueid) {
+      payment = await this.repository.getByQueueId(queueid);
     }
 
-    // 4. Get customer info
-    const customerid = await this.repository.getCustomerIdByAppointment(appointmentid);
-    const customer = await this.repository.getCustomerWithEmail(customerid);
+    if (!payment) throw new Error("Payment record not found");
+    if (payment.status === 'paid' && (appointmentid ? payment.balance_status === 'paid' : true)) {
+       throw new Error("Payment already completed");
+    }
 
-    // 5. Create PayMongo Checkout Session for the balance
-    const serviceNames = services.map((s) => s.servicename).join(", ");
+    // 2. Calculate balance
+    let balanceAmount = 0;
+    let serviceNames = "Services";
+    let description = "";
 
+    if (appointmentid) {
+      const services = await this.repository.getAppointmentServices(appointmentid);
+      const totalAmount = services.reduce((sum, s) => sum + Number(s.price || 0), 0);
+      balanceAmount = totalAmount - Number(payment.reservation_fee);
+      serviceNames = services.map((s) => s.servicename).join(", ");
+      description = `Remaining balance for appointment #${appointmentid} (Amount: ₱${balanceAmount.toFixed(2)})`;
+    } else {
+      // Walk-in
+      balanceAmount = Number(payment.reservation_fee); // For walk-ins, reservation_fee stores the full total
+      const queueServices = await this.repository.getByQueueId(queueid); // This returns rp with totals
+      balanceAmount = Number(queueServices.total_amount);
+      serviceNames = "Walk-in Services";
+      description = `Full payment for walk-in #${queueid} (Amount: ₱${balanceAmount.toFixed(2)})`;
+    }
+
+    if (balanceAmount <= 0) {
+      throw new Error("No balance remaining.");
+    }
+
+    // 3. Create PayMongo Checkout Session
     const lineItem = {
-      name: `Service Balance — ${serviceNames}`,
-      description: `Remaining balance for appointment #${appointmentid} (Amount: ₱${balanceAmount.toFixed(2)})`,
-      amount: Math.round(balanceAmount * 100), // centavos
+      name: `Service Payment — ${serviceNames}`,
+      description,
+      amount: Math.max(Math.round(balanceAmount * 100), 2000), // PHP in centavos (min 20 PHP)
       currency: "PHP",
       quantity: 1,
     };
@@ -244,8 +256,8 @@ export default class CreateReservationPayment {
             show_line_items: true,
             line_items: [lineItem],
             payment_method_types: ["gcash"],
-            success_url: `${config.frontendUrl}/myAppointment?payment=success`,
-            cancel_url: `${config.frontendUrl}/myAppointment?payment=cancelled`,
+            success_url: `${config.frontendUrl}/staff/queueing?payment=success`,
+            cancel_url: `${config.frontendUrl}/staff/queueing?payment=cancelled`,
           },
         },
       },
@@ -260,14 +272,16 @@ export default class CreateReservationPayment {
     const checkout_url = response.data.data.attributes.checkout_url;
     const paymongo_id = response.data.data.id;
 
-    // 6. Update DB with balance info
+    // 4. Update DB with balance info
+    // For walk-ins, we can update the main checkout_url/paymongo_id or the balance fields
+    // Using balance fields is safer for history consistency
     const updated = await this.repository.updateBalanceInfo(payment.reservationpaymentid, {
       balance_paymongo_id: paymongo_id,
       balance_checkout_url: checkout_url,
     });
 
     return updated;
-  }
+  };
 
   /**
    * Webhook handler for balance payments

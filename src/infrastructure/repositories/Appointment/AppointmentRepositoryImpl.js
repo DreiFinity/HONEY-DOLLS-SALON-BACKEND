@@ -152,6 +152,7 @@ export class AppointmentRepositoryImpl {
           a.branchid::INTEGER,
           a.cancellationreason::TEXT,
           a.checkedin::BOOLEAN,
+          a.updatedat::TIMESTAMP,
           NULL::INTEGER as queueid,
           'appointment'::TEXT as source
         FROM appointment a
@@ -173,6 +174,7 @@ export class AppointmentRepositoryImpl {
           q.branchid::INTEGER,
           NULL::TEXT as cancellationreason,
           q.isarrived::BOOLEAN as checkedin,
+          q.updatedat::TIMESTAMP,
           q.queueid::INTEGER,
           'walkin'::TEXT as source
         FROM queue q
@@ -192,12 +194,13 @@ export class AppointmentRepositoryImpl {
         r.noshow,
         r.branchid,
         r.source,
+        r.updatedat,
         b.branchname,
         s.firstname as staff_firstname,
         s.lastname as staff_lastname,
         COALESCE(c.firstname, SPLIT_PART(q_name.customername, ' ', 1)) AS customer_firstname,
         COALESCE(c.lastname, SPLIT_PART(q_name.customername, ' ', 2)) AS customer_lastname,
-        COALESCE(CONCAT(c.firstname, ' ', c.lastname), q_name.customername) AS customername,
+        COALESCE(NULLIF(TRIM(CONCAT(c.firstname, ' ', c.lastname)), ''), q_name.customername) AS customername,
         -- Services Subquery
         (
           SELECT COALESCE(JSON_AGG(JSON_BUILD_OBJECT(
@@ -250,6 +253,20 @@ export class AppointmentRepositoryImpl {
           ORDER BY created_at DESC LIMIT 1
         ) AS payment_status,
         (
+          SELECT balance_status
+          FROM reservationpayment
+          WHERE (r.appointmentid IS NOT NULL AND appointmentid = r.appointmentid)
+             OR (r.appointmentid IS NULL AND queueid = r.queueid)
+          ORDER BY created_at DESC LIMIT 1
+        ) AS balance_status,
+        (
+          SELECT balance_method
+          FROM reservationpayment
+          WHERE (r.appointmentid IS NOT NULL AND appointmentid = r.appointmentid)
+             OR (r.appointmentid IS NULL AND queueid = r.queueid)
+          ORDER BY created_at DESC LIMIT 1
+        ) AS balance_method,
+        (
           SELECT method
           FROM reservationpayment
           WHERE (r.appointmentid IS NOT NULL AND appointmentid = r.appointmentid)
@@ -258,23 +275,24 @@ export class AppointmentRepositoryImpl {
         ) AS payment_method,
         -- Balance Amount
         CASE 
-          WHEN r.source = 'walkin' THEN 0
-          ELSE (
-            (SELECT COALESCE(SUM(sv.amount), 0) FROM (
-              SELECT serviceid FROM appointmentservice WHERE appointmentid = r.appointmentid
-              UNION ALL
-              SELECT serviceid FROM queueservice WHERE queueid = r.queueid
-            ) rel2 JOIN service sv ON sv.serviceid = rel2.serviceid)
+          WHEN r.source = 'walkin' THEN 
+            CASE 
+              WHEN EXISTS(SELECT 1 FROM reservationpayment WHERE queueid = r.queueid AND status = 'paid') THEN 0
+              ELSE (SELECT COALESCE(SUM(sv.amount), 0) FROM queueservice qs JOIN service sv ON sv.serviceid = qs.serviceid WHERE qs.queueid = r.queueid)
+            END
+          ELSE 
+            (SELECT COALESCE(SUM(sv.amount), 0) FROM appointmentservice aps JOIN service sv ON sv.serviceid = aps.serviceid WHERE aps.appointmentid = r.appointmentid)
             -
-            (SELECT COALESCE(SUM(reservation_fee), 0) FROM reservationpayment WHERE (r.appointmentid IS NOT NULL AND appointmentid = r.appointmentid) OR (r.appointmentid IS NULL AND queueid = r.queueid))
-          )
+            (SELECT COALESCE(SUM(reservation_fee), 0) FROM reservationpayment WHERE appointmentid = r.appointmentid AND status = 'paid')
+            -
+            (SELECT COALESCE(SUM(CASE WHEN balance_status = 'paid' THEN (SELECT SUM(sv.amount) FROM appointmentservice aps JOIN service sv ON sv.serviceid = aps.serviceid WHERE aps.appointmentid = r.appointmentid) - reservation_fee ELSE 0 END), 0) FROM reservationpayment WHERE appointmentid = r.appointmentid)
         END AS balance_amount
       FROM all_records r
       LEFT JOIN branch b ON r.branchid = b.branchid
       LEFT JOIN staff s ON r.staffid = s.staffid
       LEFT JOIN customers c ON r.customerid = c.customerid
       LEFT JOIN queue q_name ON r.queueid = q_name.queueid
-      ORDER BY r.starttime DESC
+      ORDER BY r.updatedat DESC, r.starttime DESC, r.appointmentid DESC NULLS LAST, r.queueid DESC NULLS LAST
     `;
 
     const result = await pool.query(query, params);

@@ -77,6 +77,10 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+const uploadPath = path.join(process.cwd(), "upload");
+console.log("Serving static files from:", uploadPath);
+app.use("/api/uploads", express.static(uploadPath));
+
 // Routes
 app.use("/api/queue", QueueRoutes(queueRepository));
 app.use("/api/auth", AuthRoutes);
@@ -112,12 +116,6 @@ app.use("/api/returns", ReturnRoutes);
 app.use("/api/reservation-payment", ReservationPaymentRoutes);
 app.use("/api/admin/customers", customerAdminRoutes);
 app.use("/api/announcements", AnnouncementRoutes(announcementRepository));
-
-app.use(
-  "/api/uploads",
-  express.static("C:\\SALON\\salon_backend\\upload")
-);
-
 
 app.get("/", async (req, res) => {
   try {

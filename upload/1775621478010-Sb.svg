@@ -1,0 +1,47 @@
+<svg width="1440" height="600" viewBox="0 0 1440 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect x="0" y="0" width="1440" height="600" fill="#0F172A"/>
+
+  <!-- Navbar -->
+  <rect x="0" y="0" width="1440" height="80" fill="#020617"/>
+  <text x="60" y="52" fill="#E11D48" font-size="28" font-weight="700">MovieRent</text>
+  <text x="350" y="52" fill="#E5E7EB" font-size="16">Home</text>
+  <text x="430" y="52" fill="#E5E7EB" font-size="16">Browse</text>
+  <text x="560" y="52" fill="#E11D48" font-size="16" font-weight="600">Rented Movies</text>
+  <text x="700" y="52" fill="#E5E7EB" font-size="16">About</text>
+
+  <!-- Profile -->
+  <circle cx="1380" cy="40" r="20" fill="#E11D48"/>
+  <text x="1380" y="45" fill="white" font-size="14" text-anchor="middle" dominant-baseline="middle">NW</text>
+
+  <!-- Page Header -->
+  <text x="60" y="120" font-size="36" font-weight="700" fill="white">Rented Movies</text>
+  <text x="60" y="150" font-size="16" fill="#CBD5F5">Movies currently downloading or ready to watch</text>
+
+  <!-- Movie Card 1: Titanic (1953) - Downloading -->
+  <rect x="60" y="180" width="1320" height="80" rx="12" fill="#1E293B"/>
+  <!-- Poster -->
+  <rect x="70" y="190" width="60" height="60" rx="8" fill="#c7d2fe"/>
+  <!-- Details -->
+  <text x="150" y="210" fill="white" font-size="18" font-weight="600">Titanic (1953)</text>
+  <text x="150" y="235" fill="#CBD5F5" font-size="14">Barbara Stanwyck, Clifton Webb</text>
+  <text x="150" y="255" fill="#CBD5F5" font-size="14">Drama / Romance</text>
+  <!-- Progress bar -->
+  <rect x="1100" y="210" width="200" height="20" rx="10" fill="#374151"/>
+  <rect x="1100" y="210" width="100" height="20" rx="10" fill="#10B981"/>
+  <text x="1310" y="225" fill="#CBD5F5" font-size="12" text-anchor="end">50% downloaded</text>
+  <text x="1100" y="245" fill="#94A3B8" font-size="12" text-anchor="end">Expires: 07/18/2026 23:59</text>
+
+  <!-- Movie Card 2: Titanic (1997) - Completed -->
+  <rect x="60" y="280" width="1320" height="80" rx="12" fill="#1E293B"/>
+  <!-- Poster -->
+  <rect x="70" y="290" width="60" height="60" rx="8" fill="#fde68a"/>
+  <!-- Details -->
+  <text x="150" y="310" fill="white" font-size="18" font-weight="600">Titanic (1997)</text>
+  <text x="150" y="335" fill="#CBD5F5" font-size="14">Leonardo DiCaprio, Kate Winslet</text>
+  <text x="150" y="355" fill="#CBD5F5" font-size="14">Drama / Romance</text>
+  <!-- Watch Now Button -->
+  <rect x="1200" y="300" width="160" height="40" rx="12" fill="#E11D48"/>
+  <text x="1280" y="325" fill="white" font-size="16" font-weight="600" text-anchor="middle" dominant-baseline="middle">Watch Now</text>
+  <text x="1200" y="345" fill="#94A3B8" font-size="12" text-anchor="end">Expires: 07/18/2026 23:59</text>
+</svg>

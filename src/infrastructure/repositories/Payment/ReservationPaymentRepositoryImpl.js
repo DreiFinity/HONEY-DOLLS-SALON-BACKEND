@@ -150,7 +150,10 @@ export default class ReservationPaymentRepositoryImpl {
     const result = await pool.query(
       `SELECT rp.*,
               COALESCE(totals.total_service_cost, 0) AS total_amount,
-              (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount
+              CASE 
+                WHEN rp.status = 'paid' THEN 0
+                ELSE COALESCE(totals.total_service_cost, 0)
+              END AS balance_amount
        FROM reservationpayment rp
        LEFT JOIN (
            SELECT qs.queueid, SUM(sv.amount) AS total_service_cost
@@ -206,9 +209,14 @@ export default class ReservationPaymentRepositoryImpl {
               b.branchname AS branch_name,
               COALESCE(apt_totals.total_service_cost, q_totals.total_service_cost, 0) AS total_amount,
               CASE 
-                WHEN rp.appointmentid IS NOT NULL THEN (COALESCE(apt_totals.total_service_cost, 0) - rp.reservation_fee)
-                ELSE COALESCE(q_totals.total_service_cost, 0)
+                WHEN rp.appointmentid IS NOT NULL THEN 
+                  (COALESCE(apt_totals.total_service_cost, 0) - 
+                   CASE WHEN rp.status = 'paid' THEN rp.reservation_fee ELSE 0 END -
+                   CASE WHEN rp.balance_status = 'paid' THEN (COALESCE(apt_totals.total_service_cost, 0) - rp.reservation_fee) ELSE 0 END)
+                ELSE 
+                  CASE WHEN rp.status = 'paid' THEN 0 ELSE COALESCE(q_totals.total_service_cost, 0) END
               END AS balance_amount,
+              rp.balance_method,
               COALESCE(apt_totals.service_names, q_totals.service_names) AS service_names
        FROM reservationpayment rp
        LEFT JOIN appointment a ON a.appointmentid = rp.appointmentid
@@ -357,6 +365,7 @@ export default class ReservationPaymentRepositoryImpl {
       await client.query(
         `UPDATE reservationpayment 
          SET balance_status = 'paid', 
+             balance_method = 'gcash',
              balance_paid_at = CURRENT_TIMESTAMP, 
              updated_at = CURRENT_TIMESTAMP
          WHERE reservationpaymentid = $1`,
@@ -441,6 +450,7 @@ export default class ReservationPaymentRepositoryImpl {
       await client.query(
         `UPDATE reservationpayment 
          SET balance_status = 'paid', 
+             balance_method = 'cash',
              balance_paid_at = CURRENT_TIMESTAMP, 
              updated_at = CURRENT_TIMESTAMP
          WHERE reservationpaymentid = $1`,
