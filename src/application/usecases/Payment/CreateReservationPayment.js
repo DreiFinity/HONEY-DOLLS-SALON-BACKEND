@@ -194,94 +194,7 @@ export default class CreateReservationPayment {
     }
   }
 
-  /**
-   * Handle PayMongo webhook for reservation payments
-   */  /**
-   * Create a checkout session for the remaining balance or walk-in full payment
-   */
-  async createBalanceCheckout({ appointmentid, queueid }) {
-    // 1. Find the existing payment record
-    let payment;
-    if (appointmentid) {
-      payment = await this.repository.getByAppointmentId(appointmentid);
-    } else if (queueid) {
-      payment = await this.repository.getByQueueId(queueid);
-    }
-
-    if (!payment) throw new Error("Payment record not found");
-    if (payment.status === 'paid' && (appointmentid ? payment.balance_status === 'paid' : true)) {
-       throw new Error("Payment already completed");
-    }
-
-    // 2. Calculate balance
-    let balanceAmount = 0;
-    let serviceNames = "Services";
-    let description = "";
-
-    if (appointmentid) {
-      const services = await this.repository.getAppointmentServices(appointmentid);
-      const totalAmount = services.reduce((sum, s) => sum + Number(s.price || 0), 0);
-      balanceAmount = totalAmount - Number(payment.reservation_fee);
-      serviceNames = services.map((s) => s.servicename).join(", ");
-      description = `Remaining balance for appointment #${appointmentid} (Amount: ₱${balanceAmount.toFixed(2)})`;
-    } else {
-      // Walk-in
-      balanceAmount = Number(payment.reservation_fee); // For walk-ins, reservation_fee stores the full total
-      const queueServices = await this.repository.getByQueueId(queueid); // This returns rp with totals
-      balanceAmount = Number(queueServices.total_amount);
-      serviceNames = "Walk-in Services";
-      description = `Full payment for walk-in #${queueid} (Amount: ₱${balanceAmount.toFixed(2)})`;
-    }
-
-    if (balanceAmount <= 0) {
-      throw new Error("No balance remaining.");
-    }
-
-    // 3. Create PayMongo Checkout Session
-    const lineItem = {
-      name: `Service Payment — ${serviceNames}`,
-      description,
-      amount: Math.max(Math.round(balanceAmount * 100), 2000), // PHP in centavos (min 20 PHP)
-      currency: "PHP",
-      quantity: 1,
-    };
-
-    const response = await axios.post(
-      "https://api.paymongo.com/v1/checkout_sessions",
-      {
-        data: {
-          attributes: {
-            send_email_receipt: true,
-            show_description: true,
-            show_line_items: true,
-            line_items: [lineItem],
-            payment_method_types: ["gcash"],
-            success_url: `${config.frontendUrl}/staff/queueing?payment=success`,
-            cancel_url: `${config.frontendUrl}/staff/queueing?payment=cancelled`,
-          },
-        },
-      },
-      {
-        auth: {
-          username: this.PAYMONGO_SECRET,
-          password: "",
-        },
-      }
-    );
-
-    const checkout_url = response.data.data.attributes.checkout_url;
-    const paymongo_id = response.data.data.id;
-
-    // 4. Update DB with balance info
-    // For walk-ins, we can update the main checkout_url/paymongo_id or the balance fields
-    // Using balance fields is safer for history consistency
-    const updated = await this.repository.updateBalanceInfo(payment.reservationpaymentid, {
-      balance_paymongo_id: paymongo_id,
-      balance_checkout_url: checkout_url,
-    });
-
-    return updated;
-  };
+  // Legacy createBalanceCheckout removed. Balances are now handled by SettlementController.
 
   /**
    * Webhook handler for balance payments
@@ -308,12 +221,7 @@ export default class CreateReservationPayment {
       return true;
     }
 
-    // Check if it's a balance payment
-    const balanceHandled = await this.repository.markBalancePaid(sessionId);
-    if (balanceHandled) {
-      console.log("DEBUG: Successfully marked Balance Payment as PAID for session:", sessionId);
-      return true;
-    }
+    // Balances are now handled by Settlements logic in the webhook router
 
     console.log("DEBUG: Session ID not found in Reservation Payments, falling through...");
     return false;

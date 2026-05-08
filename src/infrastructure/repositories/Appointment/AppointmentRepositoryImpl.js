@@ -253,18 +253,22 @@ export class AppointmentRepositoryImpl {
           ORDER BY created_at DESC LIMIT 1
         ) AS payment_status,
         (
-          SELECT balance_status
-          FROM reservationpayment
-          WHERE (r.appointmentid IS NOT NULL AND appointmentid = r.appointmentid)
-             OR (r.appointmentid IS NULL AND queueid = r.queueid)
-          ORDER BY created_at DESC LIMIT 1
+          SELECT rs.status
+          FROM settlement_items si
+          JOIN reservation_settlements rs ON si.settlementid = rs.settlementid
+          JOIN reservationpayment rp ON si.reservationpaymentid = rp.reservationpaymentid
+          WHERE (r.appointmentid IS NOT NULL AND rp.appointmentid = r.appointmentid)
+             OR (r.appointmentid IS NULL AND rp.queueid = r.queueid)
+          ORDER BY rs.created_at DESC LIMIT 1
         ) AS balance_status,
         (
-          SELECT balance_method
-          FROM reservationpayment
-          WHERE (r.appointmentid IS NOT NULL AND appointmentid = r.appointmentid)
-             OR (r.appointmentid IS NULL AND queueid = r.queueid)
-          ORDER BY created_at DESC LIMIT 1
+          SELECT rs.method
+          FROM settlement_items si
+          JOIN reservation_settlements rs ON si.settlementid = rs.settlementid
+          JOIN reservationpayment rp ON si.reservationpaymentid = rp.reservationpaymentid
+          WHERE (r.appointmentid IS NOT NULL AND rp.appointmentid = r.appointmentid)
+             OR (r.appointmentid IS NULL AND rp.queueid = r.queueid)
+          ORDER BY rs.created_at DESC LIMIT 1
         ) AS balance_method,
         (
           SELECT method
@@ -273,6 +277,24 @@ export class AppointmentRepositoryImpl {
              OR (r.appointmentid IS NULL AND queueid = r.queueid)
           ORDER BY created_at DESC LIMIT 1
         ) AS payment_method,
+        (
+          SELECT rs.reference_code
+          FROM settlement_items si
+          JOIN reservation_settlements rs ON si.settlementid = rs.settlementid
+          JOIN reservationpayment rp ON si.reservationpaymentid = rp.reservationpaymentid
+          WHERE (r.appointmentid IS NOT NULL AND rp.appointmentid = r.appointmentid)
+             OR (r.appointmentid IS NULL AND rp.queueid = r.queueid)
+          ORDER BY rs.created_at DESC LIMIT 1
+        ) AS settlement_ref,
+        (
+          SELECT rs.settlementid
+          FROM settlement_items si
+          JOIN reservation_settlements rs ON si.settlementid = rs.settlementid
+          JOIN reservationpayment rp ON si.reservationpaymentid = rp.reservationpaymentid
+          WHERE (r.appointmentid IS NOT NULL AND rp.appointmentid = r.appointmentid)
+             OR (r.appointmentid IS NULL AND rp.queueid = r.queueid)
+          ORDER BY rs.created_at DESC LIMIT 1
+        ) AS settlement_id,
         -- Balance Amount
         CASE 
           WHEN r.source = 'walkin' THEN 
@@ -285,7 +307,13 @@ export class AppointmentRepositoryImpl {
             -
             (SELECT COALESCE(SUM(reservation_fee), 0) FROM reservationpayment WHERE appointmentid = r.appointmentid AND status = 'paid')
             -
-            (SELECT COALESCE(SUM(CASE WHEN balance_status = 'paid' THEN (SELECT SUM(sv.amount) FROM appointmentservice aps JOIN service sv ON sv.serviceid = aps.serviceid WHERE aps.appointmentid = r.appointmentid) - reservation_fee ELSE 0 END), 0) FROM reservationpayment WHERE appointmentid = r.appointmentid)
+            (
+              SELECT COALESCE(SUM(CASE WHEN rs.status = 'paid' THEN (SELECT SUM(sv.amount) FROM appointmentservice aps JOIN service sv ON sv.serviceid = aps.serviceid WHERE aps.appointmentid = r.appointmentid) - rp.reservation_fee ELSE 0 END), 0)
+              FROM reservationpayment rp
+              LEFT JOIN settlement_items si ON rp.reservationpaymentid = si.reservationpaymentid
+              LEFT JOIN reservation_settlements rs ON si.settlementid = rs.settlementid
+              WHERE rp.appointmentid = r.appointmentid
+            )
         END AS balance_amount
       FROM all_records r
       LEFT JOIN branch b ON r.branchid = b.branchid

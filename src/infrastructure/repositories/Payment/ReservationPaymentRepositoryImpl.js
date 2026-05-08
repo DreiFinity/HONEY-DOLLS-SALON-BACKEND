@@ -176,10 +176,15 @@ export default class ReservationPaymentRepositoryImpl {
               a.starttime, a.endtime, a.status AS appointment_status, a.customerid,
               s.firstname AS staff_firstname, s.lastname AS staff_lastname,
               COALESCE(totals.total_service_cost, 0) AS total_amount,
-              (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount
+              (COALESCE(totals.total_service_cost, 0) - rp.reservation_fee) AS balance_amount,
+              rs.status AS balance_status,
+              rs.method AS balance_method,
+              rs.paid_at AS balance_paid_at
        FROM reservationpayment rp
        JOIN appointment a ON a.appointmentid = rp.appointmentid
        LEFT JOIN staff s ON s.staffid = a.staffid
+       LEFT JOIN settlement_items si ON rp.reservationpaymentid = si.reservationpaymentid
+       LEFT JOIN reservation_settlements rs ON si.settlementid = rs.settlementid
        LEFT JOIN (
            SELECT aps.appointmentid, SUM(sv.amount) AS total_service_cost
            FROM appointmentservice aps
@@ -212,15 +217,28 @@ export default class ReservationPaymentRepositoryImpl {
                 WHEN rp.appointmentid IS NOT NULL THEN 
                   (COALESCE(apt_totals.total_service_cost, 0) - 
                    CASE WHEN rp.status = 'paid' THEN rp.reservation_fee ELSE 0 END -
-                   CASE WHEN rp.balance_status = 'paid' THEN (COALESCE(apt_totals.total_service_cost, 0) - rp.reservation_fee) ELSE 0 END)
+                   CASE WHEN rs.status = 'paid' THEN (COALESCE(apt_totals.total_service_cost, 0) - rp.reservation_fee) ELSE 0 END)
                 ELSE 
                   CASE WHEN rp.status = 'paid' THEN 0 ELSE COALESCE(q_totals.total_service_cost, 0) END
               END AS balance_amount,
-              rp.balance_method,
+              CASE 
+                WHEN rs.status = 'paid' THEN 
+                  CASE 
+                    WHEN rp.appointmentid IS NOT NULL THEN (COALESCE(apt_totals.total_service_cost, 0) - rp.reservation_fee)
+                    ELSE COALESCE(q_totals.total_service_cost, 0)
+                  END
+                ELSE 0
+              END AS paid_balance_amount,
+              rs.method AS balance_method,
+              rs.status AS balance_status,
+              rs.settlementid AS settlement_id,
+              rs.reference_code AS settlement_ref,
               COALESCE(apt_totals.service_names, q_totals.service_names) AS service_names
        FROM reservationpayment rp
        LEFT JOIN appointment a ON a.appointmentid = rp.appointmentid
        LEFT JOIN queue q ON q.queueid = rp.queueid
+       LEFT JOIN settlement_items si ON rp.reservationpaymentid = si.reservationpaymentid
+       LEFT JOIN reservation_settlements rs ON si.settlementid = rs.settlementid
        LEFT JOIN customers c ON c.customerid = a.customerid
        LEFT JOIN users u ON u.userid = c.userid
        LEFT JOIN staff s ON s.staffid = a.staffid
@@ -322,87 +340,19 @@ export default class ReservationPaymentRepositoryImpl {
   }
 
   /**
-   * Mark balance as paid and finalize appointment/queue
+   * Legacy Balance payment methods removed.
+   * Balances are now handled via SettlementRepository.
    */
   async markBalancePaid(balanceSessionId) {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-
-      // 1. Find the record (check appointmentid OR queueid for totals)
-      const paymentRes = await client.query(
-        `SELECT rp.*,
-                CASE 
-                  WHEN rp.appointmentid IS NOT NULL THEN COALESCE(apt_totals.total_service_cost, 0)
-                  WHEN rp.queueid IS NOT NULL THEN COALESCE(q_totals.total_service_cost, 0)
-                  ELSE 0
-                END AS total_amount
-         FROM reservationpayment rp
-         LEFT JOIN (
-             SELECT aps.appointmentid, SUM(sv.amount) AS total_service_cost
-             FROM appointmentservice aps
-             JOIN service sv ON sv.serviceid = aps.serviceid
-             GROUP BY aps.appointmentid
-         ) apt_totals ON apt_totals.appointmentid = rp.appointmentid
-         LEFT JOIN (
-             SELECT qs.queueid, SUM(sv.amount) AS total_service_cost
-             FROM queueservice qs
-             JOIN service sv ON sv.serviceid = qs.serviceid
-             GROUP BY qs.queueid
-         ) q_totals ON q_totals.queueid = rp.queueid
-         WHERE rp.balance_paymongo_id = $1`,
-        [balanceSessionId]
-      );
-
-      if (!paymentRes.rows.length) {
-        await client.query("ROLLBACK");
-        return null;
-      }
-
-      const payment = paymentRes.rows[0];
-
-      // 2. Mark balance as paid
-      await client.query(
-        `UPDATE reservationpayment 
-         SET balance_status = 'paid', 
-             balance_method = 'gcash',
-             balance_paid_at = CURRENT_TIMESTAMP, 
-             updated_at = CURRENT_TIMESTAMP
-         WHERE reservationpaymentid = $1`,
-        [payment.reservationpaymentid]
-      );
-
-      // 3. Update appointment status if it exists
-      if (payment.appointmentid) {
-        await client.query(
-          `UPDATE appointment
-           SET status = 'completed', updatedat = CURRENT_TIMESTAMP
-           WHERE appointmentid = $1`,
-          [payment.appointmentid]
-        );
-      }
-
-      // 4. Update queue status to done (if it exists)
-      const linkColumn = payment.appointmentid ? 'appointmentid' : 'queueid';
-      const linkValue = payment.appointmentid || payment.queueid;
-
-      await client.query(
-        `UPDATE queue
-         SET status = 'done', updatedat = CURRENT_TIMESTAMP
-         WHERE ${linkColumn} = $1`,
-        [linkValue]
-      );
-
-      await client.query("COMMIT");
-      return payment;
-    } catch (err) {
-      await client.query("ROLLBACK");
-      console.error("markBalancePaid error:", err);
-      return null;
-    } finally {
-      client.release();
-    }
+    console.log("DEBUG: Legacy markBalancePaid called for session:", balanceSessionId, ". This is now handled by settlements.");
+    return null;
   }
+
+  async markBalancePaidManually(reservationPaymentId, method) {
+    console.log("DEBUG: Legacy markBalancePaidManually called. This is now handled by settlements.");
+    return null;
+  }
+
   /**
    * Mark reservation as paid manually (staff/admin)
    */

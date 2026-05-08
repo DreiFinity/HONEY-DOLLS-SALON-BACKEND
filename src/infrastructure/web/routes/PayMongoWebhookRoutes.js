@@ -5,11 +5,13 @@ import SupplierPurchaseRepositoryImpl from "../../repositories/Purchase/Supplier
 import CreateSupplierPayment from "../../../application/usecases/Purchase/CreateSupplierPayment.js";
 import ReservationPaymentRepositoryImpl from "../../repositories/Payment/ReservationPaymentRepositoryImpl.js";
 import CreateReservationPayment from "../../../application/usecases/Payment/CreateReservationPayment.js";
+import SettlementRepositoryImpl from "../../repositories/Payment/SettlementRepositoryImpl.js";
 
 const router = express.Router();
 const productRepo = new CustomerProductPaymentRepositoryImpl();
 const supplierRepo = new SupplierPurchaseRepositoryImpl();
 const reservationRepo = new ReservationPaymentRepositoryImpl();
+const settlementRepo = new SettlementRepositoryImpl();
 
 const productPaymentUseCase = new CreateProductPayment(productRepo);
 const supplierPaymentUseCase = new CreateSupplierPayment(supplierRepo);
@@ -19,12 +21,38 @@ router.post("/paymongo-webhook", async (req, res) => {
   try {
     console.log("=== PayMongo Webhook Received ===");
     const event = req.body;
+    console.log("DEBUG: Webhook Event Type:", event?.data?.attributes?.type);
+    const sessionId = event?.data?.attributes?.data?.id;
+    console.log("DEBUG: Webhook Session ID:", sessionId);
 
     // 1. Try handling as a Supplier Purchase Payment
     const supplierHandled = await supplierPaymentUseCase.handleWebhook(event);
 
-    // 2. Try handling as a Reservation/Balance Payment
-    if (!supplierHandled) {
+    // 2. Try handling as a Settlement Payment (Consolidated Balance)
+    let handled = supplierHandled;
+    if (!handled) {
+      if (event?.data?.attributes?.type === "checkout_session.payment.paid") {
+        try {
+          const settlement = await settlementRepo.confirmSettlementPayment(sessionId);
+          if (settlement) {
+            console.log("DEBUG: Successfully marked Settlement as PAID for session:", sessionId);
+            handled = true;
+          } else {
+            console.log("DEBUG: confirmSettlementPayment returned null for session:", sessionId);
+          }
+        } catch (err) {
+          console.error("DEBUG: Settlement confirm CRITICAL ERROR:");
+          console.error(err);
+          if (err.response) {
+            console.error("PayMongo Error Data:", err.response.data);
+          }
+          console.log("DEBUG: Webhook session not found in settlements or already processed.");
+        }
+      }
+    }
+
+    // 3. Try handling as a Reservation/Balance Payment
+    if (!handled) {
       const reservationHandled = await reservationPaymentUseCase.handleWebhook(event);
       if (!reservationHandled) {
         await productPaymentUseCase.handleWebhook(event);

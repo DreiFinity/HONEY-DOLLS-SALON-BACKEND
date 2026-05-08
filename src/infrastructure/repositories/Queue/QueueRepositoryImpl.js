@@ -225,13 +225,11 @@ export default class QueueRepositoryImpl {
         a.starttime AS appointment_time,
         s.firstname AS staff_firstname,
         s.lastname AS staff_lastname,
-        CASE 
-          WHEN q.source = 'walkin' THEN rp.checkout_url 
-          ELSE rp.balance_checkout_url 
-        END AS balance_checkout_url,
+        rs.checkout_url AS balance_checkout_url,
         rp.status AS payment_status,
         rp.reservation_fee,
-        rp.balance_status,
+        rs.status AS balance_status,
+        rp.reservationpaymentid,
         COALESCE(
           JSON_AGG(
             DISTINCT JSONB_BUILD_OBJECT(
@@ -251,6 +249,8 @@ export default class QueueRepositoryImpl {
         (q.appointmentid IS NOT NULL AND q.appointmentid = rp.appointmentid) OR
         (q.appointmentid IS NULL AND q.queueid = rp.queueid)
       )
+      LEFT JOIN settlement_items si ON rp.reservationpaymentid = si.reservationpaymentid
+      LEFT JOIN reservation_settlements rs ON si.settlementid = rs.settlementid
       LEFT JOIN appointment a ON q.appointmentid = a.appointmentid
       WHERE q.queuedate = CURRENT_DATE
         AND q.status IN ('waiting', 'serving', 'pending_payment')
@@ -278,10 +278,11 @@ export default class QueueRepositoryImpl {
         s.firstname,
         s.lastname,
         rp.checkout_url,
-        rp.balance_checkout_url,
+        rs.checkout_url,
         rp.status,
         rp.reservation_fee,
-        rp.balance_status
+        rs.status,
+        rp.reservationpaymentid
       ORDER BY
         CASE WHEN q.isarrived = true THEN 0 ELSE 1 END,
         q.arrivaltime ASC
@@ -451,58 +452,10 @@ export default class QueueRepositoryImpl {
         totalAmount += price * qty;
       }
 
-      // ---------- Walk‑in reservation payment with PayMongo ----------
+      // ---------- Walk‑in payment placeholder ----------
+      // For walk-ins, we do NOT charge a deposit/reservation fee upfront.
+      // We create a reservationpayment record with 0 fee so it can be tracked in the settlement system.
       const reference_code = `WALK-${Math.floor(100000 + Math.random() * 900000)}`;
-
-      // Get service names for description
-      const serviceNames = serviceRes.rows.map(s => s.servicename).join(", ") || "Walk-in Services";
-
-      let checkout_url = null;
-      let paymongo_id = null;
-
-      console.log("DEBUG: Creating PayMongo session for walk-in. Total:", totalAmount.toFixed(2), "Services:", serviceNames);
-      try {
-        const paymongoResponse = await axios.post(
-          "https://api.paymongo.com/v1/checkout_sessions",
-          {
-            data: {
-              attributes: {
-                billing: {
-                  name: customername,
-                  email: "walkin@salon.com",
-                  phone: "09123456789",
-                },
-                line_items: [
-                  {
-                    name: `Walk-in Payment — ${serviceNames}`,
-                    description: `Payment for walk-in queue #${queue.queueid}`,
-                    amount: Math.max(Math.round(totalAmount * 100), 2000), // PHP in centavos (min 20 PHP)
-                    currency: "PHP",
-                    quantity: 1,
-                  },
-                ],
-                payment_method_types: ["gcash"],
-                success_url: `${config.frontendUrl}/staff/queueing?payment=success&queueid=${queue.queueid}`,
-                cancel_url: `${config.frontendUrl}/staff/queueing?payment=cancelled&queueid=${queue.queueid}`,
-              },
-            },
-          },
-          {
-            auth: {
-              username: config.paymongoSecret,
-              password: "",
-            },
-          }
-        );
-
-        checkout_url = paymongoResponse.data.data.attributes.checkout_url;
-        paymongo_id = paymongoResponse.data.data.id;
-        console.log("DEBUG: PayMongo session created successfully:", paymongo_id);
-      } catch (pmError) {
-        const errorData = pmError.response?.data || pmError.message;
-        console.error("❌ PayMongo Session Creation Error for Walk-in:", JSON.stringify(errorData, null, 2));
-        // We still create the payment record but with null checkout_url if PayMongo fails
-      }
 
       const reservationRepo = new ReservationPaymentRepositoryImpl();
       await reservationRepo.createReservationPayment({
@@ -510,12 +463,12 @@ export default class QueueRepositoryImpl {
         queueid: queue.queueid,
         customerid: null,
         reference_code,
-        method: "gcash",
+        method: "cash", // Default to cash placeholder for walk-ins
         status: "pending",
         currency: "PHP",
-        reservation_fee: totalAmount,
-        checkout_url,
-        paymongo_id,
+        reservation_fee: 0, // Walk-ins have 0 deposit
+        checkout_url: null,
+        paymongo_id: null,
       }, client);
 
       await client.query("COMMIT");
@@ -579,23 +532,26 @@ export default class QueueRepositoryImpl {
 
           // Settlement Logic: If transitioning to done, ensure payment is marked as paid
           const paymentRes = await client.query(
-            `SELECT * FROM reservationpayment WHERE appointmentid = $1`,
+            `SELECT rp.reservationpaymentid, rs.settlementid 
+             FROM reservationpayment rp
+             LEFT JOIN settlement_items si ON rp.reservationpaymentid = si.reservationpaymentid
+             LEFT JOIN reservation_settlements rs ON si.settlementid = rs.settlementid
+             WHERE rp.appointmentid = $1`,
             [updatedQueue.appointmentid]
           );
           if (paymentRes.rows.length > 0) {
             const payment = paymentRes.rows[0];
-            if (payment.status !== 'paid' || payment.balance_status !== 'paid') {
+            // Mark the reservation part as paid if not already
+            await client.query(
+              `UPDATE reservationpayment SET status = 'paid', paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP) WHERE reservationpaymentid = $1`,
+              [payment.reservationpaymentid]
+            );
+            
+            // Mark the settlement as paid if it exists
+            if (payment.settlementid) {
               await client.query(
-                `UPDATE reservationpayment 
-                 SET status = 'paid', 
-                     balance_status = 'paid',
-                     method = CASE WHEN method = 'gcash' AND status != 'paid' THEN 'cash' ELSE method END,
-                     balance_method = CASE WHEN (balance_method = 'gcash' OR balance_method IS NULL) AND balance_status != 'paid' THEN 'cash' ELSE balance_method END,
-                     paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP),
-                     balance_paid_at = COALESCE(balance_paid_at, CURRENT_TIMESTAMP),
-                     updated_at = CURRENT_TIMESTAMP
-                 WHERE reservationpaymentid = $1`,
-                [payment.reservationpaymentid]
+                `UPDATE reservation_settlements SET status = 'paid', paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP) WHERE settlementid = $1`,
+                [payment.settlementid]
               );
             }
           }
@@ -611,20 +567,26 @@ export default class QueueRepositoryImpl {
       } else if (updatedQueue && !updatedQueue.appointmentid && data.status === "done") {
         // Walk-in Settlement Logic
         const paymentRes = await client.query(
-          `SELECT * FROM reservationpayment WHERE queueid = $1`,
+          `SELECT rp.reservationpaymentid, rs.settlementid 
+           FROM reservationpayment rp
+           LEFT JOIN settlement_items si ON rp.reservationpaymentid = si.reservationpaymentid
+           LEFT JOIN reservation_settlements rs ON si.settlementid = rs.settlementid
+           WHERE rp.queueid = $1`,
           [updatedQueue.queueid]
         );
         if (paymentRes.rows.length > 0) {
           const payment = paymentRes.rows[0];
-          if (payment.status !== 'paid') {
+          // Mark the reservation part as paid if not already
+          await client.query(
+            `UPDATE reservationpayment SET status = 'paid', paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP) WHERE reservationpaymentid = $1`,
+            [payment.reservationpaymentid]
+          );
+          
+          // Mark the settlement as paid if it exists
+          if (payment.settlementid) {
             await client.query(
-              `UPDATE reservationpayment 
-               SET status = 'paid', 
-                   method = CASE WHEN method = 'gcash' THEN 'cash' ELSE method END,
-                   paid_at = CURRENT_TIMESTAMP,
-                   updated_at = CURRENT_TIMESTAMP
-               WHERE reservationpaymentid = $1`,
-              [payment.reservationpaymentid]
+              `UPDATE reservation_settlements SET status = 'paid', paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP) WHERE settlementid = $1`,
+              [payment.settlementid]
             );
           }
         }

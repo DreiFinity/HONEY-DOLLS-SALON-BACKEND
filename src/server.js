@@ -55,6 +55,7 @@ import SyncTrackingStatus from "./application/usecases/Payment/SyncTrackingStatu
 
 import AnnouncementRoutes from "./infrastructure/web/routes/AnnouncementRoutes.js";
 import AnnouncementRepositoryImpl from "./infrastructure/repositories/Admin/AnnouncementRepositoryImpl.js";
+import SettlementRoutes from "./infrastructure/web/routes/SettlementRoutes.js";
 
 const appointmentRepository = new AppointmentRepositoryImpl();
 const userRepository = new UserRepositoryImpl();
@@ -116,6 +117,7 @@ app.use("/api/returns", ReturnRoutes);
 app.use("/api/reservation-payment", ReservationPaymentRoutes);
 app.use("/api/admin/customers", customerAdminRoutes);
 app.use("/api/announcements", AnnouncementRoutes(announcementRepository));
+app.use("/api/settlements", SettlementRoutes);
 
 app.get("/", async (req, res) => {
   try {
