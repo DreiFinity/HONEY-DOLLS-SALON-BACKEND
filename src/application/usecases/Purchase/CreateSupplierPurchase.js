@@ -9,7 +9,7 @@ export default class CreateSupplierPurchase {
     return `REF-${timestamp}-${random}`;
   }
 
-  async execute(purchaseData, items) {
+  async execute(purchaseData, items, paymentTerms) {
     if (!purchaseData.supplierid) throw new Error("Supplier ID is required");
     if (!items || items.length === 0) throw new Error("At least one purchase item is required");
 
@@ -25,6 +25,6 @@ export default class CreateSupplierPurchase {
       }
     }
 
-    return await this.supplierPurchaseRepository.create(purchaseData, items);
+    return await this.supplierPurchaseRepository.create(purchaseData, items, paymentTerms);
   }
 }

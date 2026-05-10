@@ -9,19 +9,22 @@ import SupplierPurchaseRepository from "../../../domain/repositories/Purchase/Su
 import { pool } from "../../db/index.js";
 
 export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepository {
-  async create(purchaseData, items) {
+  async create(purchaseData, items, paymentTerms = { type: 'IMMEDIATE', days: 0 }) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
       // 1. Insert Master: supplierpurchase
-      // Note: We use 'PENDING' as default status in code if not specified
       const orderQuery = `
-        INSERT INTO supplierpurchase (supplierid, status, branchid, reference_code)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO supplierpurchase (supplierid, status, branchid)
+        VALUES ($1, $2, $3)
         RETURNING *;
       `;
-      const orderValues = [purchaseData.supplierid, purchaseData.status || "PENDING", purchaseData.branchid, purchaseData.reference_code || generateReferenceCode()];
+      const orderValues = [
+        purchaseData.supplierid, 
+        purchaseData.status || "PENDING", 
+        purchaseData.branchid
+      ];
       const orderResult = await client.query(orderQuery, orderValues);
       const purchase = orderResult.rows[0];
 
@@ -50,11 +53,13 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
 
   async findAll() {
     const query = `
-      SELECT sp.*, s.suppliername, b.branchname, sp.reference_code
+      SELECT DISTINCT ON (sp.purchaseid) 
+        sp.*, s.suppliername, b.branchname, pay.payment_type, pay.payment_term_days
       FROM supplierpurchase sp
       JOIN supplier s ON sp.supplierid = s.supplierid
       LEFT JOIN branch b ON sp.branchid = b.branchid
-      ORDER BY sp.createdat DESC;
+      LEFT JOIN supplierpayment pay ON sp.purchaseid = pay.purchaseid
+      ORDER BY sp.purchaseid, pay.createdat ASC;
     `;
     const { rows } = await pool.query(query);
     return rows;
@@ -63,18 +68,21 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
   async findById(purchaseid) {
     // Get master
     const orderQuery = `
-      SELECT sp.*, s.suppliername, b.branchname, sp.reference_code
+      SELECT sp.*, s.suppliername, b.branchname, pay.payment_type, pay.payment_term_days
       FROM supplierpurchase sp
       JOIN supplier s ON sp.supplierid = s.supplierid
       LEFT JOIN branch b ON sp.branchid = b.branchid
-      WHERE sp.purchaseid = $1;
+      LEFT JOIN supplierpayment pay ON sp.purchaseid = pay.purchaseid
+      WHERE sp.purchaseid = $1
+      ORDER BY pay.createdat ASC
+      LIMIT 1;
     `;
     const orderRes = await pool.query(orderQuery, [purchaseid]);
     if (orderRes.rows.length === 0) return null;
 
     // Get details
     const detailQuery = `
-      SELECT spd.*, p.prodname, p.price as unit_price
+      SELECT spd.*, p.prodname, p.supplier_price as unit_price
       FROM supplierpurchasedetails spd
       JOIN products p ON spd.productid = p.productid
       WHERE spd.purchaseid = $1;
@@ -89,17 +97,21 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
 
   async recordPayment(paymentData) {
     const query = `
-      INSERT INTO supplierpayment (purchaseid, partialamountpaid, method, paymongo_id, checkout_url, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO supplierpayment (purchaseid, partialamountpaid, method, paymongo_id, checkout_url, status, reference_code, payment_type, payment_term_days)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (paymongo_id) DO NOTHING
       RETURNING *;
     `;
     const values = [
       paymentData.purchaseid,
-      paymentData.amount, // maps to partialamountpaid
+      paymentData.amount,
       paymentData.method,
       paymentData.paymongo_id,
       paymentData.checkout_url,
-      paymentData.status || 'PENDING'
+      paymentData.status || 'PENDING',
+      paymentData.reference_code || generateReferenceCode(),
+      paymentData.payment_type || 'IMMEDIATE',
+      paymentData.payment_term_days || 0
     ];
     const { rows } = await pool.query(query, values);
     return rows[0];
@@ -205,36 +217,39 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
   async fetchPaymentRecords() {
     const query = `
       SELECT 
-        spay.supplierpaymentid,
-        spay.purchaseid,
-        spay.partialamountpaid,
-        spay.method as payment_method,
-        spay.status as payment_status,
-        spay.createdat as payment_date,
-        spay.checkout_url,
-        spur.status as order_status,
-        spur.branchid,
-        spur.reference_code,
-        s.suppliername,
+        sp.purchaseid, 
+        sp.status as order_status, 
+        sp.createdat as order_date,
+        pay.payment_type,
+        pay.payment_term_days,
+        s.suppliername, 
         b.branchname,
+        b.branchid,
+        pay.supplierpaymentid,
+        pay.partialamountpaid,
+        pay.method as payment_method,
+        pay.status as payment_status,
+        pay.paymongo_id,
+        pay.reference_code,
+        pay.createdat as payment_date,
         (
           SELECT json_agg(json_build_object(
             'productid', pd.productid,
             'quantity', pd.quantity,
             'prodname', prod.prodname,
-            'price', prod.price,
-            'supplier_price', COALESCE(prod.supplier_price, 0),
+            'supplier_price', prod.supplier_price,
             'prodimage', prod.prodimage
           ))
           FROM supplierpurchasedetails pd
           JOIN products prod ON pd.productid = prod.productid
-          WHERE pd.purchaseid = spur.purchaseid
+          WHERE pd.purchaseid = sp.purchaseid
         ) as items
-      FROM supplierpayment spay
-      JOIN supplierpurchase spur ON spay.purchaseid = spur.purchaseid
-      JOIN supplier s ON spur.supplierid = s.supplierid
-      LEFT JOIN branch b ON spur.branchid = b.branchid
-      ORDER BY spay.createdat DESC;
+      FROM supplierpurchase sp
+      JOIN supplier s ON sp.supplierid = s.supplierid
+      LEFT JOIN branch b ON sp.branchid = b.branchid
+      LEFT JOIN supplierpayment pay ON sp.purchaseid = pay.purchaseid
+      GROUP BY sp.purchaseid, s.suppliername, b.branchname, b.branchid, pay.supplierpaymentid
+      ORDER BY sp.createdat DESC;
     `;
     const { rows } = await pool.query(query);
     return rows;

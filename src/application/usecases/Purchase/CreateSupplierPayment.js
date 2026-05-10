@@ -8,7 +8,7 @@ export default class CreateSupplierPayment {
     this.FRONTEND_URL = config.frontendUrl || "http://localhost:5173";
   }
 
-  async createCheckout(purchaseid, amount, method, isDownpayment = false) {
+  async createCheckout(purchaseid, amount, method, isDownpayment = false, payment_type = 'IMMEDIATE', payment_term_days = 0) {
     // 1. Validate purchase exists
     const purchase = await this.supplierPurchaseRepo.findById(purchaseid);
     if (!purchase) throw new Error("Purchase Order not found");
@@ -25,14 +25,22 @@ export default class CreateSupplierPayment {
               amount: Math.round(amount * 100), // convert to cents
               currency: "PHP",
               description: `Payment for Purchase #${purchaseid}`,
-              name: `PO-Payment-${purchase.reference_code || purchaseid}`,
+              name: `PO-Payment-${purchase.purchaseid}`,
               quantity: 1,
             },
           ],
           payment_method_types: method === "GCASH" ? ["gcash"] : ["card"],
           success_url: `${this.FRONTEND_URL}/supplierPurRecord`,
           cancel_url: `${this.FRONTEND_URL}/supplierPurchases`,
-          description: `Supplier payment for Reference: ${purchase.reference_code || purchaseid}`,
+          description: `Supplier payment for Purchase: #${purchase.purchaseid}`,
+          metadata: {
+            purchaseid: purchaseid.toString(),
+            amount: amount.toString(),
+            method: method,
+            payment_type: payment_type,
+            payment_term_days: payment_term_days.toString(),
+            isDownpayment: isDownpayment.toString()
+          }
         },
       },
     };
@@ -52,18 +60,8 @@ export default class CreateSupplierPayment {
 
       const session = response.data.data;
 
-      // 3. Record PENDING payment in DB
-      // If it's NOT a downpayment, we record 0 as per user instruction (means full payment)
-      const dbAmount = isDownpayment ? amount : 0;
-
-      await this.supplierPurchaseRepo.recordPayment({
-        purchaseid,
-        amount: dbAmount,
-        method: method,
-        paymongo_id: session.id,
-        checkout_url: session.attributes.checkout_url,
-        status: 'PENDING'
-      });
+      // We NO LONGER record the payment here. 
+      // It will only be recorded when the payment is successful (via webhook/confirm).
 
       return {
         checkout_url: session.attributes.checkout_url,
@@ -88,8 +86,25 @@ export default class CreateSupplierPayment {
 
     const session = response.data.data;
     if (session.attributes.payment_intent.attributes.status === 'succeeded') {
-      // Update local DB
-      await this.supplierPurchaseRepo.updatePaymentStatus(session_id, 'PAID');
+      // Check if already recorded
+      const metadata = session.attributes.metadata;
+      if (metadata && metadata.purchaseid) {
+        const paymentData = {
+          purchaseid: parseInt(metadata.purchaseid),
+          amount: parseFloat(metadata.amount),
+          method: metadata.method,
+          paymongo_id: session_id,
+          checkout_url: session.attributes.checkout_url,
+          status: 'PAID',
+          payment_type: metadata.payment_type,
+          payment_term_days: parseInt(metadata.payment_term_days)
+        };
+
+        // recordPayment should handle "already exists" or I can just let it run (pool query might need ON CONFLICT if I want to be safe)
+        // But since we are recording it for the first time only on success now, it should be fine.
+        await this.supplierPurchaseRepo.recordPayment(paymentData);
+        await this.supplierPurchaseRepo.updateStatus(paymentData.purchaseid, 'COMPLETED');
+      }
       return true;
     }
     return false;
@@ -100,13 +115,34 @@ export default class CreateSupplierPayment {
       // 1. Only process payment succeeded events
       if (event?.data?.attributes?.type !== "checkout_session.payment.paid") return;
 
-      const sessionId = event.data.attributes.data.id;
-      console.log("Processing Supplier PayMongo webhook for session:", sessionId);
+      const sessionObj = event.data.attributes.data;
+      const sessionId = sessionObj.id;
+      const metadata = sessionObj.attributes.metadata;
 
-      // 2. Mark payment and purchase order as paid/completed in DB
-      const result = await this.supplierPurchaseRepo.markPaymentPaidBySession(sessionId);
+      console.log("Processing Supplier PayMongo webhook for session:", sessionId, "Metadata:", metadata);
+
+      if (!metadata || !metadata.purchaseid) {
+        console.error("No metadata found in PayMongo session");
+        return false;
+      }
+
+      // Record the payment as PAID now
+      const paymentData = {
+        purchaseid: parseInt(metadata.purchaseid),
+        amount: parseFloat(metadata.amount),
+        method: metadata.method,
+        paymongo_id: sessionId,
+        checkout_url: sessionObj.attributes.checkout_url,
+        status: 'PAID',
+        payment_type: metadata.payment_type,
+        payment_term_days: parseInt(metadata.payment_term_days)
+      };
+
+      const result = await this.supplierPurchaseRepo.recordPayment(paymentData);
 
       if (result) {
+        // Also update the purchase order status to COMPLETED (or similar)
+        await this.supplierPurchaseRepo.updateStatus(paymentData.purchaseid, 'COMPLETED');
         console.log("✅ Supplier Payment and PO confirmed for session:", sessionId);
         return true;
       }
