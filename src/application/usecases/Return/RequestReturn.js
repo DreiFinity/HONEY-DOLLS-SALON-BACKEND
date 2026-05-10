@@ -13,7 +13,8 @@ export default class RequestReturn {
       throw new Error("Quantity must be greater than zero");
     }
 
-    return await this.returnRepository.createReturnRequest(returnData);
+    const reference_code = `RET-${Math.floor(100000 + Math.random() * 900000)}`;
+    return await this.returnRepository.createReturnRequest({ ...returnData, reference_code });
   }
 
   async updateStatus(returnid, status) {

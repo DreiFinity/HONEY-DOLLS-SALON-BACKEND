@@ -21,6 +21,7 @@ export default function ProductRoutes(productRepository) {
     controller.update.bind(controller)
   );
   router.delete("/:id", controller.delete.bind(controller));
+  router.get("/:id/ledger", controller.getProductLedger.bind(controller));
 
   return router;
 }

@@ -2,7 +2,7 @@ import { pool } from "../../db/index.js";
 
 export default class ReturnRepositoryImpl {
   async createReturnRequest(returnData) {
-    const { orderid, customerid, productid, quantity, reason, reason_type, status, customer_evidence_image } = returnData;
+    const { orderid, customerid, productid, quantity, reason, reason_type, status, customer_evidence_image, reference_code } = returnData;
 
     console.log(`Checking order ${orderid} for customer ${customerid}`);
 
@@ -30,11 +30,11 @@ export default class ReturnRepositoryImpl {
 
     const query = `
       INSERT INTO product_returns (
-        orderid, customerid, productid, quantity, reason, reason_type, status, customer_evidence_image, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        orderid, customerid, productid, quantity, reason, reason_type, status, customer_evidence_image, updated_at, reference_code
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
       RETURNING *
     `;
-    const values = [orderid, customerid, productid, quantity, reason, reason_type || 'others', status || 'pending', customer_evidence_image];
+    const values = [orderid, customerid, productid, quantity, reason, reason_type || 'others', status || 'pending', customer_evidence_image, reference_code];
     const { rows } = await pool.query(query, values);
     return rows[0];
   }
@@ -55,7 +55,7 @@ export default class ReturnRepositoryImpl {
   async getAllReturns() {
     const query = `
       SELECT r.*, p.prodname, p.prodimage, c.firstname, c.lastname, 
-             cp.reference_code, cp.customerpaymentid
+             cp.reference_code as payment_ref, cp.customerpaymentid
       FROM product_returns r
       JOIN products p ON r.productid = p.productid
       JOIN customers c ON r.customerid = c.customerid

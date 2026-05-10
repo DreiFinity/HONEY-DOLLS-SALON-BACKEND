@@ -2,13 +2,13 @@
 import { pool } from "../../db/index.js";
 
 export default class ProductTransferRepositoryImpl {
-  async createTransfer({ productid, from_branchid, to_branchid, quantity, adminid, remarks }) {
+  async createTransfer({ productid, from_branchid, to_branchid, quantity, adminid, remarks, reference_code }) {
     const query = `
-      INSERT INTO product_transfers (productid, from_branchid, to_branchid, quantity, adminid, remarks)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO product_transfers (productid, from_branchid, to_branchid, quantity, adminid, remarks, reference_code)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
-    const values = [productid, from_branchid, to_branchid, quantity, adminid, remarks];
+    const values = [productid, from_branchid, to_branchid, quantity, adminid, remarks, reference_code];
     const { rows } = await pool.query(query, values);
     return rows[0];
   }

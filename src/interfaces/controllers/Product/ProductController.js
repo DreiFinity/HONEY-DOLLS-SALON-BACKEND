@@ -94,4 +94,15 @@ export default class ProductController {
       });
     }
   }
+
+  async getProductLedger(req, res) {
+    try {
+      const productId = parseInt(req.params.id);
+      const ledger = await this.productRepository.getLedger(productId);
+      return res.json({ success: true, ledger });
+    } catch (error) {
+      console.error("Ledger Fetch Error:", error);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
 }

@@ -36,13 +36,16 @@ export default class TransferProductStock {
     }
 
     // 2. Perform transfer
+    const reference_code = `TRF-${Math.floor(100000 + Math.random() * 900000)}`;
+    
     return await this.productTransferRepo.createTransfer({
       productid,
       from_branchid,
       to_branchid,
       quantity,
       adminid,
-      remarks
+      remarks,
+      reference_code
     });
   }
 }
