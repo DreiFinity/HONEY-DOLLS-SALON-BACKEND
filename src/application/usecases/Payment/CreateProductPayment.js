@@ -6,7 +6,8 @@ export default class CreateProductPayment {
   constructor(repository) {
     this.repository = repository;
     this.customerPaymentRepository = repository;
-    this.PAYMONGO_SECRET = config.paymongoSecret;
+    this.PAYMONGO_SECRET = config.paymongoSecret || process.env.PAYMONGO_SECRET_KEY;
+    console.log("[DEBUG] PayMongo Secret present:", !!this.PAYMONGO_SECRET);
   }
 
   async execute(body, customerid) {
@@ -68,30 +69,35 @@ export default class CreateProductPayment {
         quantity: 1,
       };
 
-      const response = await axios.post(
-        "https://api.paymongo.com/v1/checkout_sessions",
-        {
-          data: {
-            attributes: {
-              billing: {
-                name: `${customer.firstname} ${customer.lastname}`,
-                email: customer.email,
-                phone: customer.contact || "09123456789",
+      let response;
+      try {
+        response = await axios.post(
+          "https://api.paymongo.com/v1/checkout_sessions",
+          {
+            data: {
+              attributes: {
+                billing: {
+                  name: `${customer.firstname || "Guest"} ${customer.lastname || "Customer"}`,
+                  email: customer.email || "customer@example.com",
+                  phone: customer.contact || "09123456789",
+                },
+                line_items: [lineItem],
+                payment_method_types: ["gcash"],
+                success_url: `${process.env.FRONTEND_URL}/receipt`,
+                cancel_url: `${process.env.FRONTEND_URL}/customerTransaction`,
               },
-              line_items: [lineItem],
-              payment_method_types: ["gcash"],
-              success_url: `${process.env.FRONTEND_URL}/receipt`,
-              cancel_url: `${process.env.FRONTEND_URL}/customerTransaction`,
             },
           },
-        },
-        {
-          auth: {
-            username: this.PAYMONGO_SECRET,
-            password: "",
+          {
+            headers: {
+              Authorization: `Basic ${Buffer.from(this.PAYMONGO_SECRET + ":").toString("base64")}`,
+            },
           },
-        },
-      );
+        );
+      } catch (err) {
+        console.error("❌ PayMongo API Error:", err.response?.data || err.message);
+        throw new Error(err.response?.data?.errors?.[0]?.detail || err.message);
+      }
 
       checkout_url = response.data.data.attributes.checkout_url;
       paymongo_id = response.data.data.id;
@@ -128,7 +134,7 @@ export default class CreateProductPayment {
     // Call PayMongo API to confirm status
     const response = await axios.get(
       `https://api.paymongo.com/v1/checkout_sessions/${session_id}`,
-      { auth: { username: this.PAYMONGO_SECRET, password: "" } },
+      { headers: { Authorization: `Basic ${Buffer.from(this.PAYMONGO_SECRET + ":").toString("base64")}` } },
     );
 
     const session = response.data.data;

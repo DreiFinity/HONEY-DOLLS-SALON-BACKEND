@@ -1,6 +1,6 @@
 import { Router } from "express";
 import ProductController from "../../../interfaces/controllers/Product/ProductController.js";
-import { upload } from "../middleware/upload.js";
+import { upload, handleCloudinaryUrl } from "../middleware/upload.js";
 
 export default function ProductRoutes(productRepository) {
   const router = Router();
@@ -13,11 +13,13 @@ export default function ProductRoutes(productRepository) {
   router.post(
     "/",
     upload.single("prodimage"),
+    handleCloudinaryUrl,
     controller.create.bind(controller)
   );
   router.put(
     "/:id",
     upload.single("prodimage"),
+    handleCloudinaryUrl,
     controller.update.bind(controller)
   );
   router.delete("/:id", controller.delete.bind(controller));

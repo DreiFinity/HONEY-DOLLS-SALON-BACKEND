@@ -4,13 +4,20 @@ import { v4 as uuidv4 } from "uuid";
 
 const { Pool } = pkg;
 
-export const pool = new Pool({
-  host: config.db.host,
-  user: config.db.user,
-  password: config.db.password,
-  database: config.db.database,
-  port: config.db.port,
-});
+export const pool = new Pool(
+  config.db.url 
+    ? { 
+        connectionString: config.db.url,
+        ssl: { rejectUnauthorized: false } // Required for cloud databases like Supabase
+      }
+    : {
+        host: config.db.host,
+        user: config.db.user,
+        password: config.db.password,
+        database: config.db.database,
+        port: config.db.port,
+      }
+);
 
 pool
   .connect()

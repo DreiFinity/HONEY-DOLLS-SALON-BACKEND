@@ -10,7 +10,7 @@ import AuthController from "../../../interfaces/controllers/Login/AuthController
 import EditStaff from "../../../application/usecases/Staff/EditStaff.js";
 import DeleteStaff from "../../../application/usecases/Staff/DeleteStaff.js";
 import GetAllStaff from "../../../application/usecases/Staff/GetAllStaff.js";
-import { upload } from "../middleware/upload.js";
+import { upload, handleCloudinaryUrl } from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -39,11 +39,13 @@ router.post("/register-customer", controller.registerCustomerHandler);
 router.post(
   "/register-staff",
   upload.single("image"),
+  handleCloudinaryUrl,
   controller.registerStaffHandler
 );
 router.post(
   "/register-admin",
   upload.single("image"),
+  handleCloudinaryUrl,
   controller.registerAdminHandler
 );
 
@@ -53,6 +55,6 @@ router.post("/login-staff", controller.loginStaffHandler);
 router.post("/login-admin", controller.loginAdminHandler);
 
 router.get("/staff", controller.fetchStaffHandler);
-router.put("/staff/:id", upload.single("image"), controller.editStaffHandler);
+router.put("/staff/:id", upload.single("image"), handleCloudinaryUrl, controller.editStaffHandler);
 router.delete("/staff/:id", controller.deleteStaffHandler);
 export default router;

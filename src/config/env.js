@@ -8,11 +8,17 @@ dotenv.config({ path: path.join(__dirname, "../../.env") });
 export const config = {
   port: process.env.PORT || 3000,
   db: {
+    url: process.env.DATABASE_URL,
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     port: process.env.DB_PORT || 5432,
+  },
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET,
   },
   jwtSecret: process.env.JWT_SECRET || "supersecretkey",
   paymongoSecret: process.env.PAYMONGO_SECRET_KEY,
