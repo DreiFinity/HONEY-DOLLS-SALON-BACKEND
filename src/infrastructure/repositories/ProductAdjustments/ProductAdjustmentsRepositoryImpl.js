@@ -1,5 +1,10 @@
-// src/infrastructure/repositories/ProductAdjustments/ProductAdjustmentsRepositoryImpl.js
 import { pool } from "../../db/index.js";
+
+const generateRefCode = (prefix) => {
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+  return `${prefix}-${timestamp}-${random}`;
+};
 
 export default class ProductAdjustmentsRepositoryImpl {
 
@@ -23,6 +28,7 @@ export default class ProductAdjustmentsRepositoryImpl {
         pa.remarks,
         pa.datetime,
         pa.branchid,
+        pa.reference_code,
         b.branchname
       FROM product_adjustments pa
       LEFT JOIN products  p ON pa.productid = p.productid
@@ -39,12 +45,13 @@ export default class ProductAdjustmentsRepositoryImpl {
 
   // ─── WASTE ──────────────────────────────────────────────────────────────────
   async createWaste({ productid, userid, reason, remarks, branchid }) {
+    const refCode = generateRefCode('WASTE');
     const query = `
-      INSERT INTO product_adjustments (type, productid, userid, reason, remarks, branchid, datetime)
-      VALUES ('Waste', $1, $2, $3, $4, $5, NOW())
+      INSERT INTO product_adjustments (type, productid, userid, reason, remarks, branchid, datetime, reference_code)
+      VALUES ('Waste', $1, $2, $3, $4, $5, NOW(), $6)
       RETURNING adjustmentid AS wasteid, *
     `;
-    const result = await pool.query(query, [productid, userid, reason, remarks, branchid]);
+    const result = await pool.query(query, [productid, userid, reason, remarks, branchid, refCode]);
     return result.rows[0];
   }
 
@@ -55,12 +62,13 @@ export default class ProductAdjustmentsRepositoryImpl {
 
   // ─── USAGE ──────────────────────────────────────────────────────────────────
   async createUsage({ productid, userid, quantity, reason, remarks, branchid }) {
+    const refCode = generateRefCode('USE');
     const query = `
-      INSERT INTO product_adjustments (type, productid, userid, quantity, reason, remarks, branchid, datetime)
-      VALUES ('Usage', $1, $2, $3, $4, $5, $6, NOW())
+      INSERT INTO product_adjustments (type, productid, userid, quantity, reason, remarks, branchid, datetime, reference_code)
+      VALUES ('Usage', $1, $2, $3, $4, $5, $6, NOW(), $7)
       RETURNING adjustmentid AS usageid, *
     `;
-    const result = await pool.query(query, [productid, userid, quantity, reason, remarks, branchid]);
+    const result = await pool.query(query, [productid, userid, quantity, reason, remarks, branchid, refCode]);
     return result.rows[0];
   }
 
@@ -71,12 +79,13 @@ export default class ProductAdjustmentsRepositoryImpl {
 
   // ─── DAMAGE ─────────────────────────────────────────────────────────────────
   async createDamage({ productid, userid, reason, remarks, branchid }) {
+    const refCode = generateRefCode('DMG');
     const query = `
-      INSERT INTO product_adjustments (type, productid, userid, reason, remarks, branchid, datetime)
-      VALUES ('Damage', $1, $2, $3, $4, $5, NOW())
+      INSERT INTO product_adjustments (type, productid, userid, reason, remarks, branchid, datetime, reference_code)
+      VALUES ('Damage', $1, $2, $3, $4, $5, NOW(), $6)
       RETURNING adjustmentid AS damageid, *
     `;
-    const result = await pool.query(query, [productid, userid, reason, remarks, branchid]);
+    const result = await pool.query(query, [productid, userid, reason, remarks, branchid, refCode]);
     return result.rows[0];
   }
 

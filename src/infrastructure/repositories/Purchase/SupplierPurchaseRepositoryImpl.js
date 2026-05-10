@@ -1,7 +1,7 @@
 const generateReferenceCode = () => {
   const timestamp = Date.now().toString();
   const random = Math.random().toString(36).substring(2, 7).toUpperCase();
-  return `REF-${timestamp}-${random}`;
+  return `PO-${timestamp}-${random}`;
 };
 
 
@@ -21,8 +21,8 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
         RETURNING *;
       `;
       const orderValues = [
-        purchaseData.supplierid, 
-        purchaseData.status || "PENDING", 
+        purchaseData.supplierid,
+        purchaseData.status || "PENDING",
         purchaseData.branchid
       ];
       const orderResult = await client.query(orderQuery, orderValues);
