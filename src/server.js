@@ -75,11 +75,25 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-  origin: ["https://honey-dolls-salon-frontend-xiz6.vercel.app", "http://localhost:5173"],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    const allowedDomains = [".vercel.app", "localhost:5173"];
+    const isAllowed = allowedDomains.some(domain => origin.includes(domain));
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
+
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
