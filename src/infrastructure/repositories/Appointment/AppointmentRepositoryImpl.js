@@ -142,8 +142,8 @@ export class AppointmentRepositoryImpl {
         SELECT 
           a.appointmentid::INTEGER,
           a.customerid::INTEGER,
-          a.starttime::TIMESTAMP,
-          a.endtime::TIMESTAMP,
+          a.starttime::TIMESTAMPTZ,
+          a.endtime::TIMESTAMPTZ,
           a.staffid::INTEGER,
           a.notes::TEXT,
           a.priority::TEXT,
@@ -152,7 +152,7 @@ export class AppointmentRepositoryImpl {
           a.branchid::INTEGER,
           a.cancellationreason::TEXT,
           a.checkedin::BOOLEAN,
-          a.updatedat::TIMESTAMP,
+          a.updatedat::TIMESTAMPTZ,
           NULL::INTEGER as queueid,
           'appointment'::TEXT as source
         FROM appointment a
@@ -164,8 +164,8 @@ export class AppointmentRepositoryImpl {
         SELECT 
           NULL::INTEGER as appointmentid,
           q.customerid::INTEGER,
-          q.arrivaltime::TIMESTAMP as starttime,
-          q.arrivaltime::TIMESTAMP as endtime,
+          q.arrivaltime::TIMESTAMPTZ as starttime,
+          q.arrivaltime::TIMESTAMPTZ as endtime,
           q.staffid::INTEGER,
           q.notes::TEXT,
           '0'::TEXT as priority,
@@ -174,7 +174,7 @@ export class AppointmentRepositoryImpl {
           q.branchid::INTEGER,
           NULL::TEXT as cancellationreason,
           q.isarrived::BOOLEAN as checkedin,
-          q.updatedat::TIMESTAMP,
+          q.updatedat::TIMESTAMPTZ,
           q.queueid::INTEGER,
           'walkin'::TEXT as source
         FROM queue q

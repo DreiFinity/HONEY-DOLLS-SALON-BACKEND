@@ -546,7 +546,7 @@ export default class QueueRepositoryImpl {
               `UPDATE reservationpayment SET status = 'paid', paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP) WHERE reservationpaymentid = $1`,
               [payment.reservationpaymentid]
             );
-            
+
             // Mark the settlement as paid if it exists
             if (payment.settlementid) {
               await client.query(
@@ -581,7 +581,7 @@ export default class QueueRepositoryImpl {
             `UPDATE reservationpayment SET status = 'paid', paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP) WHERE reservationpaymentid = $1`,
             [payment.reservationpaymentid]
           );
-          
+
           // Mark the settlement as paid if it exists
           if (payment.settlementid) {
             await client.query(
