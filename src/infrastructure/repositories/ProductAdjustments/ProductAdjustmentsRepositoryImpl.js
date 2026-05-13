@@ -23,7 +23,7 @@ export default class ProductAdjustmentsRepositoryImpl {
           c.firstname || ' ' || c.lastname,
           u.username
         ) AS staff,
-        pa.quantity,
+        COALESCE(pa.quantity, 1) AS quantity,
         pa.reason,
         pa.remarks,
         pa.datetime,
@@ -44,14 +44,14 @@ export default class ProductAdjustmentsRepositoryImpl {
   }
 
   // ─── WASTE ──────────────────────────────────────────────────────────────────
-  async createWaste({ productid, userid, reason, remarks, branchid }) {
+  async createWaste({ productid, userid, quantity, reason, remarks, branchid }) {
     const refCode = generateRefCode('WASTE');
     const query = `
-      INSERT INTO product_adjustments (type, productid, userid, reason, remarks, branchid, datetime, reference_code)
-      VALUES ('Waste', $1, $2, $3, $4, $5, NOW(), $6)
+      INSERT INTO product_adjustments (type, productid, userid, quantity, reason, remarks, branchid, datetime, reference_code)
+      VALUES ('Waste', $1, $2, $3, $4, $5, $6, NOW(), $7)
       RETURNING adjustmentid AS wasteid, *
     `;
-    const result = await pool.query(query, [productid, userid, reason, remarks, branchid, refCode]);
+    const result = await pool.query(query, [productid, userid, quantity, reason, remarks, branchid, refCode]);
     return result.rows[0];
   }
 
@@ -78,14 +78,14 @@ export default class ProductAdjustmentsRepositoryImpl {
   }
 
   // ─── DAMAGE ─────────────────────────────────────────────────────────────────
-  async createDamage({ productid, userid, reason, remarks, branchid }) {
+  async createDamage({ productid, userid, quantity, reason, remarks, branchid }) {
     const refCode = generateRefCode('DMG');
     const query = `
-      INSERT INTO product_adjustments (type, productid, userid, reason, remarks, branchid, datetime, reference_code)
-      VALUES ('Damage', $1, $2, $3, $4, $5, NOW(), $6)
+      INSERT INTO product_adjustments (type, productid, userid, quantity, reason, remarks, branchid, datetime, reference_code)
+      VALUES ('Damage', $1, $2, $3, $4, $5, $6, NOW(), $7)
       RETURNING adjustmentid AS damageid, *
     `;
-    const result = await pool.query(query, [productid, userid, reason, remarks, branchid, refCode]);
+    const result = await pool.query(query, [productid, userid, quantity, reason, remarks, branchid, refCode]);
     return result.rows[0];
   }
 

@@ -18,11 +18,11 @@ export default class ProductAdjustmentsController {
   // POST /api/product-adjustments/waste
   async createWaste(req, res) {
     try {
-      const { productid, userid, reason, remarks, branchid } = req.body;
-      if (!productid || !userid || !reason) {
-        return res.status(400).json({ message: "productid, userid, and reason are required." });
+      const { productid, userid, quantity, reason, remarks, branchid } = req.body;
+      if (!productid || !userid || !reason || !quantity) {
+        return res.status(400).json({ message: "productid, userid, quantity, and reason are required." });
       }
-      const record = await this.repo.createWaste({ productid, userid, reason, remarks, branchid });
+      const record = await this.repo.createWaste({ productid, userid, quantity: parseInt(quantity), reason, remarks, branchid });
       return res.status(201).json({ message: "Waste record created.", record });
     } catch (err) {
       console.error(err);
@@ -77,11 +77,11 @@ export default class ProductAdjustmentsController {
   // POST /api/product-adjustments/damage
   async createDamage(req, res) {
     try {
-      const { productid, userid, reason, remarks, branchid } = req.body;
-      if (!productid || !userid || !reason) {
-        return res.status(400).json({ message: "productid, userid, and reason are required." });
+      const { productid, userid, quantity, reason, remarks, branchid } = req.body;
+      if (!productid || !userid || !reason || !quantity) {
+        return res.status(400).json({ message: "productid, userid, quantity, and reason are required." });
       }
-      const record = await this.repo.createDamage({ productid, userid, reason, remarks, branchid });
+      const record = await this.repo.createDamage({ productid, userid, quantity: parseInt(quantity), reason, remarks, branchid });
       return res.status(201).json({ message: "Damage record created.", record });
     } catch (err) {
       console.error(err);
