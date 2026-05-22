@@ -30,8 +30,8 @@ export default class CreateSupplierPayment {
             },
           ],
           payment_method_types: method === "GCASH" ? ["gcash"] : ["card"],
-          success_url: `${this.FRONTEND_URL}/supplierPurRecord`,
-          cancel_url: `${this.FRONTEND_URL}/supplierPurchases`,
+          success_url: `${this.FRONTEND_URL}/staffDeliveries`,
+          cancel_url: `${this.FRONTEND_URL}/staffDeliveries`,
           description: `Supplier payment for Purchase: #${purchase.purchaseid}`,
           metadata: {
             purchaseid: purchaseid.toString(),
