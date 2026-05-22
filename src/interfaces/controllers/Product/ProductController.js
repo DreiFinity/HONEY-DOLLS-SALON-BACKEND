@@ -16,7 +16,7 @@ export default class ProductController {
 
   async create(req, res) {
     try {
-      const { prodname, prodcat, price, supplier_price } = req.body;
+      const { prodname, prodcat, price, supplier_price, weight_gms, length_cm, width_cm, height_cm } = req.body;
       if (!prodname || !prodcat || !price) {
         return res.status(400).json({ message: "All fields are required" });
       }
@@ -29,6 +29,10 @@ export default class ProductController {
         price: parseFloat(price),
         supplier_price: parseFloat(supplier_price || 0),
         prodimage,
+        weight_gms: weight_gms ? parseInt(weight_gms) : null,
+        length_cm: length_cm ? parseFloat(length_cm) : null,
+        width_cm: width_cm ? parseFloat(width_cm) : null,
+        height_cm: height_cm ? parseFloat(height_cm) : null,
       });
 
       return res.status(201).json({
@@ -46,7 +50,7 @@ export default class ProductController {
   async update(req, res) {
     try {
       const productId = parseInt(req.params.id);
-      const { prodname, prodcat, price, supplier_price } = req.body;
+      const { prodname, prodcat, price, supplier_price, weight_gms, length_cm, width_cm, height_cm } = req.body;
       if (!prodname || !prodcat || !price)
         return res.status(400).json({ message: "All fields are required" });
 
@@ -58,6 +62,10 @@ export default class ProductController {
         price: parseFloat(price),
         supplier_price: parseFloat(supplier_price || 0),
         prodimage,
+        weight_gms: weight_gms ? parseInt(weight_gms) : null,
+        length_cm: length_cm ? parseFloat(length_cm) : null,
+        width_cm: width_cm ? parseFloat(width_cm) : null,
+        height_cm: height_cm ? parseFloat(height_cm) : null,
       });
 
       return res.status(200).json({

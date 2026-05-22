@@ -1,25 +1,21 @@
-import pkg from 'pg';
-import fs from 'fs';
-const { Pool } = pkg;
+import { pool } from "../src/infrastructure/db/index.js";
 
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'salon',
-  password: '123456',
-  port: 5432,
-});
-
-async function runMigration() {
+async function run() {
+  console.log("Running migration to add product weight and size columns...");
   try {
-    const sql = fs.readFileSync('c:/NAGBA_ANDREI/salon/migrations/create_settlements_tables.sql', 'utf8');
-    await pool.query(sql);
-    console.log("Migration successful!");
+    await pool.query(`
+      ALTER TABLE products 
+      ADD COLUMN IF NOT EXISTS weight_gms integer DEFAULT 150,
+      ADD COLUMN IF NOT EXISTS length_cm numeric DEFAULT 5.0,
+      ADD COLUMN IF NOT EXISTS width_cm numeric DEFAULT 5.0,
+      ADD COLUMN IF NOT EXISTS height_cm numeric DEFAULT 10.0;
+    `);
+    console.log("Migration executed successfully!");
   } catch (err) {
-    console.error("Migration failed:", err);
+    console.error("Migration failed:", err.message);
   } finally {
-    pool.end();
+    process.exit();
   }
 }
 
-runMigration();
+run();

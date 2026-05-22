@@ -10,20 +10,30 @@ export default class ProductRepositoryImpl {
   }
 
   async create(productData) {
-    const { prodname, prodcat, price, supplier_price, prodimage } = productData;
+    const { prodname, prodcat, price, supplier_price, prodimage, weight_gms, length_cm, width_cm, height_cm } = productData;
 
     const query = `
-      INSERT INTO products (prodname, prodcat, price, supplier_price, prodimage)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO products (prodname, prodcat, price, supplier_price, prodimage, weight_gms, length_cm, width_cm, height_cm)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
 
-    const values = [prodname, prodcat, price, supplier_price || 0, prodimage];
+    const values = [
+      prodname,
+      prodcat,
+      price,
+      supplier_price || 0,
+      prodimage,
+      weight_gms ?? 150,
+      length_cm ?? 5.0,
+      width_cm ?? 5.0,
+      height_cm ?? 10.0,
+    ];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
   async update(productid, productData) {
-    const { prodname, prodcat, price, supplier_price, prodimage } = productData;
+    const { prodname, prodcat, price, supplier_price, prodimage, weight_gms, length_cm, width_cm, height_cm } = productData;
 
     const query = `
       UPDATE products
@@ -31,12 +41,27 @@ export default class ProductRepositoryImpl {
           prodcat = $2,
           price = $3,
           supplier_price = $4,
-          prodimage = COALESCE($5, prodimage)
-      WHERE productid = $6
+          prodimage = COALESCE($5, prodimage),
+          weight_gms = $6,
+          length_cm = $7,
+          width_cm = $8,
+          height_cm = $9
+      WHERE productid = $10
       RETURNING *
     `;
 
-    const values = [prodname, prodcat, price, supplier_price || 0, prodimage, productid];
+    const values = [
+      prodname,
+      prodcat,
+      price,
+      supplier_price || 0,
+      prodimage,
+      weight_gms ?? 150,
+      length_cm ?? 5.0,
+      width_cm ?? 5.0,
+      height_cm ?? 10.0,
+      productid,
+    ];
     const result = await pool.query(query, values);
     return result.rows[0];
   }

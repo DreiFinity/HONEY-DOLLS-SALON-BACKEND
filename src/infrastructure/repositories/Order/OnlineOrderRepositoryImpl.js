@@ -65,7 +65,11 @@ export default class OnlineOrderRepositoryImpl {
         p.productid,
         p.prodname,
         p.prodcat,
-        p.prodimage
+        p.prodimage,
+        p.weight_gms,
+        p.length_cm,
+        p.width_cm,
+        p.height_cm
       FROM orders o
       LEFT JOIN orderdetails od ON o.orderid = od.orderid
       LEFT JOIN products p ON od.productid = p.productid
@@ -96,6 +100,10 @@ export default class OnlineOrderRepositoryImpl {
           prodimage: row.prodimage,
           quantity: row.quantity,
           unit_price: row.unit_price,
+          weight_gms: row.weight_gms,
+          length_cm: row.length_cm,
+          width_cm: row.width_cm,
+          height_cm: row.height_cm,
         });
       }
     });

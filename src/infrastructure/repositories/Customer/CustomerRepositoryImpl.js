@@ -83,8 +83,8 @@ export default class CustomerAddressRepositoryImpl extends CustomerAddressReposi
   async create(data) {
     const result = await pool.query(
       `INSERT INTO customer_addresses
-       (customerid, street, barangay, city, province, postal_code, is_default)
-       VALUES ($1,$2,$3,$4,$5,$6,false)
+       (addressid, customerid, street, barangay, city, province, postal_code, is_default)
+       VALUES (DEFAULT,$1,$2,$3,$4,$5,$6,false)
        RETURNING *`,
       [
         data.customerid,
