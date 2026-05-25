@@ -21,7 +21,31 @@ export const pool = new Pool(
 
 pool
   .connect()
-  .then(() => console.log("✅ Connected to PostgreSQL"))
+  .then(async () => {
+    console.log("✅ Connected to PostgreSQL");
+    try {
+      await pool.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS weight_kg NUMERIC DEFAULT 1.0;");
+      console.log("✅ self-healing: weight_kg column verified/added to products table");
+      
+      await pool.query("ALTER TABLE product_adjustments ADD COLUMN IF NOT EXISTS reference_code VARCHAR(50);");
+      console.log("✅ self-healing: reference_code column verified/added to product_adjustments table");
+
+      await pool.query("ALTER TABLE product_returns ADD COLUMN IF NOT EXISTS reference_code VARCHAR(50);");
+      console.log("✅ self-healing: reference_code column verified/added to product_returns table");
+
+      await pool.query("ALTER TABLE product_transfers ADD COLUMN IF NOT EXISTS reference_code VARCHAR(50);");
+      console.log("✅ self-healing: reference_code column verified/added to product_transfers table");
+
+      await pool.query(`
+        ALTER TABLE supplierpurchase 
+        ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'IMMEDIATE',
+        ADD COLUMN IF NOT EXISTS payment_term_days INTEGER DEFAULT 0;
+      `);
+      console.log("✅ self-healing: supplierpurchase payment columns verified/added");
+    } catch (dbErr) {
+      console.error("❌ Error running self-healing schema updates:", dbErr);
+    }
+  })
   .catch((err) => console.error("❌ DB connection error:", err));
 
 // Get active session for a user

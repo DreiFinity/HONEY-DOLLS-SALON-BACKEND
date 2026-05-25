@@ -20,7 +20,7 @@ export default class InventoryRepositoryImpl {
         JOIN customerpayment_orders cpo ON cp.customerpaymentid = cpo.customerpaymentid
         JOIN orders o ON o.orderid = cpo.orderid
         JOIN orderdetails od ON od.orderid = o.orderid
-        WHERE cp.fulfillment_branchid = $1 AND o.status IN ('shipping', 'delivered', 'completed')
+        WHERE cp.fulfillment_branchid = $1 AND o.status IN ('pending', 'processing', 'shipping', 'delivered', 'completed')
         GROUP BY od.productid
       ),
       Returns AS (
@@ -101,7 +101,7 @@ export default class InventoryRepositoryImpl {
         JOIN customerpayment_orders cpo ON cp.customerpaymentid = cpo.customerpaymentid
         JOIN orders o ON o.orderid = cpo.orderid
         JOIN orderdetails od ON od.orderid = o.orderid
-        WHERE o.status IN ('shipping', 'delivered', 'completed')
+        WHERE o.status IN ('pending', 'processing', 'shipping', 'delivered', 'completed')
         GROUP BY od.productid
       ),
       Returns AS (
