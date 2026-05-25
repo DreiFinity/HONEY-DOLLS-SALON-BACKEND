@@ -101,7 +101,7 @@ export default class InventoryRepositoryImpl {
         JOIN customerpayment_orders cpo ON cp.customerpaymentid = cpo.customerpaymentid
         JOIN orders o ON o.orderid = cpo.orderid
         JOIN orderdetails od ON od.orderid = o.orderid
-        WHERE o.status IN ('shipping', 'delivered', 'completed')
+        WHERE o.status IN ('processing','shipping', 'delivered', 'completed')
         GROUP BY od.productid
       ),
       Returns AS (

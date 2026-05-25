@@ -88,15 +88,17 @@ export default class CustomerProductPaymentRepositoryImpl {
           [paymentId, orderid],
         );
 
-        await client.query(
-          `
-          UPDATE orders
-          SET status='processing',
-              updatedat=CURRENT_TIMESTAMP
-          WHERE orderid=$1
-          `,
-          [orderid],
-        );
+        if (data.method === 'cod') {
+          await client.query(
+            `
+            UPDATE orders
+            SET status='processing',
+                updatedat=CURRENT_TIMESTAMP
+            WHERE orderid=$1
+            `,
+            [orderid],
+          );
+        }
       }
 
       await client.query("COMMIT");
