@@ -61,6 +61,7 @@ export default class InventoryRepositoryImpl {
         p.productid,
         p.prodname as name,
         p.price,
+        p.supplier_price,
         p.prodcat as category,
         (COALESCE(a.total_in, 0) - COALESCE(f.total_out, 0) + COALESCE(r.total_returned, 0) + COALESCE(ti.total_transfer_in, 0) - COALESCE(tout.total_transfer_out, 0) - COALESCE(adj.total_adjustment, 0)) as stock,
         CURRENT_TIMESTAMP as updated
@@ -123,6 +124,7 @@ export default class InventoryRepositoryImpl {
         p.productid,
         p.prodname as name,
         p.price,
+        p.supplier_price,
         p.prodcat as category,
         (COALESCE(a.total_in, 0) - COALESCE(f.total_out, 0) + COALESCE(r.total_returned, 0) - COALESCE(adj.total_adjustment, 0)) as stock,
         CURRENT_TIMESTAMP as updated

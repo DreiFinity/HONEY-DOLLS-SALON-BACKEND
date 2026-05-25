@@ -1,5 +1,6 @@
 import axios from "axios";
 import { config } from "../../../config/env.js";
+import { pool } from "../../../infrastructure/db/index.js";
 
 export default class CreateAppointment {
   constructor(appointmentRepository, reservationPaymentRepository) {
@@ -41,7 +42,17 @@ export default class CreateAppointment {
     }
     if (totalServiceAmount <= 0) throw new Error("Total service amount must be > 0");
 
-    const reservationFee = Math.ceil(totalServiceAmount * 0.25);
+    let pct = 25;
+    try {
+      const settingsRes = await pool.query("SELECT value FROM settings WHERE key = 'downpayment_percentage'");
+      if (settingsRes.rows.length > 0) {
+        pct = parseFloat(settingsRes.rows[0].value);
+      }
+    } catch (err) {
+      console.error("Error fetching downpayment_percentage setting:", err);
+    }
+
+    const reservationFee = Math.ceil(totalServiceAmount * (pct / 100));
     const reference_code = "RES-" + Math.floor(100000 + Math.random() * 900000);
 
     // 2. Create Appointment in Database FIRST
@@ -67,7 +78,7 @@ export default class CreateAppointment {
     const serviceNames = services.map((s) => s.servicename || "Service").join(", ");
     const lineItem = {
       name: `Reservation Fee — ${serviceNames}`,
-      description: `25% reservation fee for appointment`,
+      description: `${pct}% reservation fee for appointment`,
       amount: Math.max(Math.round(reservationFee * 100), 2000),
       currency: "PHP",
       quantity: 1,

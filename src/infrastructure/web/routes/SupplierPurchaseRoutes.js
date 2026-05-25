@@ -28,6 +28,7 @@ router.post("/", controller.createHandler);
 router.post("/:id/payment", controller.addPaymentHandler);
 router.get("/records", controller.recordsHandler);
 router.put("/records/:id/arrival", controller.arrivalHandler);
+router.put("/records/:id/cancel", controller.cancelHandler);
 router.get("/", controller.listHandler);
 router.get("/:id", controller.detailHandler);
 

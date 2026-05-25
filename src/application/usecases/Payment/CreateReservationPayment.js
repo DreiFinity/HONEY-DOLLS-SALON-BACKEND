@@ -1,5 +1,6 @@
 import axios from "axios";
 import { config } from "../../../config/env.js";
+import { pool } from "../../../infrastructure/db/index.js";
 
 export default class CreateReservationPayment {
   constructor(repository) {
@@ -8,7 +9,7 @@ export default class CreateReservationPayment {
   }
 
   /**
-   * Create a reservation payment (25% of total service cost) via PayMongo GCash
+   * Create a reservation payment (dynamic % of total service cost) via PayMongo GCash
    */
   async execute({ appointmentid, customerid }) {
     if (!appointmentid) throw new Error("Appointment ID is required");
@@ -37,7 +38,7 @@ export default class CreateReservationPayment {
       throw new Error("No services found for this appointment");
     }
 
-    // 4. Calculate total service amount and 25% reservation fee
+    // 4. Calculate total service amount and dynamic reservation fee
     let totalServiceAmount = 0;
     for (const svc of services) {
       totalServiceAmount += Number(svc.price || 0);
@@ -47,7 +48,17 @@ export default class CreateReservationPayment {
       throw new Error("Total service amount must be greater than 0");
     }
 
-    const reservationFee = Math.ceil(totalServiceAmount * 0.25); // 25% rounded up
+    let pct = 25;
+    try {
+      const settingsRes = await pool.query("SELECT value FROM settings WHERE key = 'downpayment_percentage'");
+      if (settingsRes.rows.length > 0) {
+        pct = parseFloat(settingsRes.rows[0].value);
+      }
+    } catch (err) {
+      console.error("Error fetching downpayment_percentage setting:", err);
+    }
+
+    const reservationFee = Math.ceil(totalServiceAmount * (pct / 100)); // Dynamic percentage rounded up
 
     // 5. Get customer info for PayMongo billing
     const customer = await this.repository.getCustomerWithEmail(customerid);
@@ -61,7 +72,7 @@ export default class CreateReservationPayment {
 
     const lineItem = {
       name: `Reservation Fee — ${serviceNames}`,
-      description: `25% reservation fee for appointment #${appointmentid}`,
+      description: `${pct}% reservation fee for appointment #${appointmentid}`,
       amount: Math.max(Math.round(reservationFee * 100), 2000), // PayMongo minimum is 20 PHP (2000 centavos)
       currency: "PHP",
       quantity: 1,

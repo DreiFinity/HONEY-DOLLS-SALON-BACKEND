@@ -20,9 +20,11 @@ export default class AuthController {
 
   registerCustomerHandler = async (req, res) => {
     try {
+      console.log("[REGISTER] Payload received:", JSON.stringify(req.body, null, 2));
       const result = await this.registerCustomer.execute(req.body);
       res.json(result);
     } catch (err) {
+      console.error("[REGISTER] Error:", err.message, err.stack);
       res.status(400).json({ error: err.message });
     }
   };

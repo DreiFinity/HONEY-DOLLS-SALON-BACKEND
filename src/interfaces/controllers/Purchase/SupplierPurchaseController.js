@@ -131,4 +131,14 @@ export default class SupplierPurchaseController {
       res.status(500).json({ success: false, error: err.message });
     }
   };
+
+  cancelHandler = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await this.payUseCase.supplierPurchaseRepo.updateStatus(id, 'CANCELLED');
+      res.json({ success: true, data: result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  };
 }

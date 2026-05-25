@@ -44,7 +44,7 @@ router.post("/paymongo-webhook", async (req, res) => {
           console.error("DEBUG: Settlement confirm CRITICAL ERROR:");
           console.error(err);
           if (err.response) {
-            console.error("PayMongo Error Data:", err.response.data);a
+            console.error("PayMongo Error Data:", err.response.data);
           }
           console.log("DEBUG: Webhook session not found in settlements or already processed.");
         }

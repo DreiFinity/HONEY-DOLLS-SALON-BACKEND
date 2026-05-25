@@ -170,11 +170,13 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
       // 1. Update Purchase Status
       const updatePoQuery = `
         UPDATE supplierpurchase
-        SET status = $1, updatedat = CURRENT_TIMESTAMP
+        SET status = $1, 
+            updatedat = CURRENT_TIMESTAMP,
+            arrival_date = CASE WHEN $3 = 'ARRIVED' THEN CURRENT_TIMESTAMP ELSE arrival_date END
         WHERE purchaseid = $2
         RETURNING *;
       `;
-      const poResult = await client.query(updatePoQuery, [status, purchaseid]);
+      const poResult = await client.query(updatePoQuery, [status, purchaseid, status]);
 
       // 2. Automated Payment Settle for CASH upon Arrival + Increment Stock
       if (status === 'ARRIVED') {
@@ -220,6 +222,7 @@ export default class SupplierPurchaseRepositoryImpl extends SupplierPurchaseRepo
         sp.purchaseid, 
         sp.status as order_status, 
         sp.createdat as order_date,
+        sp.arrival_date,
         pay.payment_type,
         pay.payment_term_days,
         s.suppliername, 
