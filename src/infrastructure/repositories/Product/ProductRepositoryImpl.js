@@ -110,7 +110,7 @@ export default class ProductRepositoryImpl {
         JOIN orders o ON cpo.orderid = o.orderid
         JOIN orderdetails od ON o.orderid = od.orderid
         LEFT JOIN branch b ON cp.fulfillment_branchid = b.branchid
-        WHERE od.productid = $1 AND o.status IN ('shipping', 'delivered', 'completed')
+        WHERE od.productid = $1 AND o.status IN ('processing', 'shipping', 'delivered', 'completed')
       )
       UNION ALL
       (
