@@ -82,9 +82,12 @@ export default class ProductRepositoryImpl {
           'PURCHASE' as type,
           spd.quantity as quantity,
           'Supplier Restock' as remarks,
-          b.branchname as branch
+          b.branchname as branch,
+          p.supplier_price as cost_price,
+          p.price as sell_price
         FROM supplierpurchase sp
         JOIN supplierpurchasedetails spd ON sp.purchaseid = spd.purchaseid
+        JOIN products p ON spd.productid = p.productid
         LEFT JOIN branch b ON sp.branchid = b.branchid
         LEFT JOIN LATERAL (
           SELECT reference_code 
@@ -104,11 +107,14 @@ export default class ProductRepositoryImpl {
           'SALE' as type,
           -od.quantity as quantity,
           'Sold to Customer' as remarks,
-          b.branchname as branch
+          b.branchname as branch,
+          p.supplier_price as cost_price,
+          p.price as sell_price
         FROM customerpayment cp
         JOIN customerpayment_orders cpo ON cp.customerpaymentid = cpo.customerpaymentid
         JOIN orders o ON cpo.orderid = o.orderid
         JOIN orderdetails od ON o.orderid = od.orderid
+        JOIN products p ON od.productid = p.productid
         LEFT JOIN branch b ON cp.fulfillment_branchid = b.branchid
         WHERE od.productid = $1 AND o.status IN ('processing', 'shipping', 'delivered', 'completed')
       )
@@ -121,8 +127,11 @@ export default class ProductRepositoryImpl {
           UPPER(pa.type) as type,
           -COALESCE(pa.quantity, 1) as quantity,
           pa.reason || ' ' || COALESCE(pa.remarks, '') as remarks,
-          b.branchname as branch
+          b.branchname as branch,
+          p.supplier_price as cost_price,
+          p.price as sell_price
         FROM product_adjustments pa
+        JOIN products p ON pa.productid = p.productid
         LEFT JOIN branch b ON pa.branchid = b.branchid
         WHERE pa.productid = $1
       )
@@ -135,10 +144,13 @@ export default class ProductRepositoryImpl {
           'RETURN' as type,
           r.quantity as quantity,
           r.reason as remarks,
-          b.branchname as branch
+          b.branchname as branch,
+          p.supplier_price as cost_price,
+          p.price as sell_price
         FROM product_returns r
         JOIN customerpayment_orders cpo ON r.orderid = cpo.orderid
         JOIN customerpayment cp ON cp.customerpaymentid = cpo.customerpaymentid
+        JOIN products p ON r.productid = p.productid
         LEFT JOIN branch b ON cp.fulfillment_branchid = b.branchid
         WHERE r.productid = $1 AND r.status = 'completed'
       )
@@ -151,8 +163,11 @@ export default class ProductRepositoryImpl {
           'TRANSFER_IN' as type,
           pt.quantity as quantity,
           'From ' || fb.branchname as remarks,
-          tb.branchname as branch
+          tb.branchname as branch,
+          p.supplier_price as cost_price,
+          p.price as sell_price
         FROM product_transfers pt
+        JOIN products p ON pt.productid = p.productid
         LEFT JOIN branch fb ON pt.from_branchid = fb.branchid
         LEFT JOIN branch tb ON pt.to_branchid = tb.branchid
         WHERE pt.productid = $1 AND pt.status = 'ARRIVED'
@@ -166,8 +181,11 @@ export default class ProductRepositoryImpl {
           'TRANSFER_OUT' as type,
           -pt.quantity as quantity,
           'To ' || tb.branchname as remarks,
-          fb.branchname as branch
+          fb.branchname as branch,
+          p.supplier_price as cost_price,
+          p.price as sell_price
         FROM product_transfers pt
+        JOIN products p ON pt.productid = p.productid
         LEFT JOIN branch fb ON pt.from_branchid = fb.branchid
         LEFT JOIN branch tb ON pt.to_branchid = tb.branchid
         WHERE pt.productid = $1

@@ -20,7 +20,8 @@ router.post("/confirm-payment", auth, controller.paymentSuccess.bind(controller)
 
 router.get("/payment-success", auth, async (req, res) => {
   try {
-    res.redirect(`${process.env.FRONTEND_URL}/receipt`);
+    const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/+$/, "");
+    res.redirect(`${frontendUrl}/receipt`);
   } catch (err) {
     res.status(400).send("Payment verification failed: " + err.message);
   }
