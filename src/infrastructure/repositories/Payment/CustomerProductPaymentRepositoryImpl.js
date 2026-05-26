@@ -477,7 +477,7 @@ export default class CustomerProductPaymentRepositoryImpl {
         return null;
       }
 
-      const cpId = cpUpdate.rows[0].customerpaymentid;
+      const cpIds = cpUpdate.rows.map(r => r.customerpaymentid);
 
       // 2. Update all linked orders to complete/delivered
       await client.query(
@@ -486,10 +486,10 @@ export default class CustomerProductPaymentRepositoryImpl {
         SET status = 'completed', updatedat = CURRENT_TIMESTAMP
         FROM customerpayment_orders cpo
         WHERE o.orderid = cpo.orderid
-          AND cpo.customerpaymentid = $1
+          AND cpo.customerpaymentid = ANY($1)
           AND o.status != 'completed'
         `,
-        [cpId]
+        [cpIds]
       );
 
       await client.query("COMMIT");
