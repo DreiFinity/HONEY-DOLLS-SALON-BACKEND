@@ -173,7 +173,8 @@ export default class CustomerProductPaymentRepositoryImpl {
       await client.query(
         `UPDATE orders
        SET status='processing', updatedat=CURRENT_TIMESTAMP
-       WHERE orderid IN (SELECT orderid FROM customerpayment_orders WHERE customerpaymentid=$1)`,
+       WHERE orderid IN (SELECT orderid FROM customerpayment_orders WHERE customerpaymentid=$1)
+         AND status='pending'`,
         [customerpaymentid],
       );
 
@@ -216,7 +217,8 @@ export default class CustomerProductPaymentRepositoryImpl {
         `UPDATE orders o
        SET status='processing', updatedat=CURRENT_TIMESTAMP
        FROM customerpayment_orders cpo
-       WHERE o.orderid=cpo.orderid AND cpo.customerpaymentid=$1`,
+       WHERE o.orderid=cpo.orderid AND cpo.customerpaymentid=$1
+         AND o.status='pending'`,
         [payment.customerpaymentid],
       );
 
@@ -461,10 +463,10 @@ export default class CustomerProductPaymentRepositoryImpl {
       // 1. Update customerpayment delivered_at if not already set
       const cpUpdate = await client.query(
         `UPDATE customerpayment 
-         SET delivered_at = CURRENT_TIMESTAMP, 
+         SET delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP), 
              updated_at = CURRENT_TIMESTAMP,
              status = CASE WHEN method = 'cod' THEN 'paid' ELSE status END
-         WHERE tracking_number = $1 AND delivered_at IS NULL
+         WHERE tracking_number = $1
          RETURNING customerpaymentid`,
         [tracking_number]
       );
